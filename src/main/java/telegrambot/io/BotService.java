@@ -42,8 +42,10 @@ public class BotService {
     }
 
     public void saveUser(User user) {
-        botDTO.users.add(user);
-        save();
+        if (!botDTO.users.contains(user)) {
+            botDTO.users.add(user);
+            save();
+        }
     }
 
     public Set<Message> getMessages() {

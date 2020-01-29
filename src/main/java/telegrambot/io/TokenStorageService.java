@@ -23,9 +23,11 @@ public class TokenStorageService {
     }
 
     public void saveToken(String token) {
-        tokenStorageDTO.knownTokens.add(token);
-        tokenStorageDTO.mostRecentToken = token;
-        save();
+        if (!token.equals(tokenStorageDTO.mostRecentToken)) {
+            tokenStorageDTO.knownTokens.add(token);
+            tokenStorageDTO.mostRecentToken = token;
+            save();
+        }
     }
 
     public String getMostRecentToken() {
