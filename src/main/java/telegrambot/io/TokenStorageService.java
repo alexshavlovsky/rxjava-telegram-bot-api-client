@@ -11,7 +11,7 @@ public class TokenStorageService {
     private TokenStorageDTO tokenStorageDTO;
 
     public TokenStorageService() {
-        tokenStorageDTO = (TokenStorageDTO) tryLoadObject(TOKEN_STORAGE_FILE);
+        tokenStorageDTO = tryLoadObject(TOKEN_STORAGE_FILE, TokenStorageDTO.class);
         if (tokenStorageDTO == null) {
             tokenStorageDTO = new TokenStorageDTO();
             save();

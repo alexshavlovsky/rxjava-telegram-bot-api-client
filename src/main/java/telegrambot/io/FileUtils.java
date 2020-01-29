@@ -8,11 +8,11 @@ class FileUtils {
         throw new AssertionError();
     }
 
-    static Object tryLoadObject(String fileName) {
+    static <T> T tryLoadObject(String fileName, Class<T> clazz) {
         if (fileExists(fileName)) {
             try (var fis = new FileInputStream(fileName);
                  var ois = new ObjectInputStream(fis)) {
-                return ois.readObject();
+                return clazz.cast(ois.readObject());
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -20,7 +20,7 @@ class FileUtils {
         return null;
     }
 
-    static <T> void saveObject(String fileName, T data) {
+    static void saveObject(String fileName, Object data) {
         try (var fos = new FileOutputStream(fileName);
              var oos = new ObjectOutputStream(fos)) {
             oos.writeObject(data);

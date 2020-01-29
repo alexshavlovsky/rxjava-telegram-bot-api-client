@@ -19,7 +19,7 @@ public class BotService {
         int pos = token.indexOf(':');
         if (pos == -1) throw new RuntimeException("Malformed token");
         botFileName = token.substring(0, pos) + BOT_FILE_EXTENSION;
-        botDTO = (BotDTO) tryLoadObject(botFileName);
+        botDTO = tryLoadObject(botFileName, BotDTO.class);
         if (botDTO == null) {
             botDTO = new BotDTO(token);
             saveObject(botFileName, botDTO);
