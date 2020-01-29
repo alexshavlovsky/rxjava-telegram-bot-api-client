@@ -12,30 +12,38 @@ import static telegrambot.io.FileUtils.tryLoadObject;
 
 public class BotService {
     private static final String BOT_FILE_EXTENSION = ".data";
-    private String botFileName;
+    private String fileName;
     private BotDTO botDTO;
 
     public BotService(String token) {
-        int pos = token.indexOf(':');
-        if (pos == -1) throw new RuntimeException("Malformed token");
-        botFileName = token.substring(0, pos) + BOT_FILE_EXTENSION;
-        botDTO = tryLoadObject(botFileName, BotDTO.class);
+        fileName = BotService.getFileName(token);
+        botDTO = tryLoadObject(fileName, BotDTO.class);
         if (botDTO == null) {
             botDTO = new BotDTO(token);
-            saveObject(botFileName, botDTO);
+            save();
         }
+    }
+
+    private static String getFileName(String token) {
+        int pos = token.indexOf(':');
+        if (pos == -1) throw new RuntimeException("Malformed token");
+        return token.substring(0, pos) + BOT_FILE_EXTENSION;
+    }
+
+    private void save() {
+        saveObject(fileName, botDTO);
     }
 
     public void saveMessage(Message message) {
         botDTO.messages.add(message);
         botDTO.chats.add(message.getChat());
         botDTO.users.add(message.getFrom());
-        saveObject(botFileName, botDTO);
+        save();
     }
 
     public void saveUser(User user) {
         botDTO.users.add(user);
-        saveObject(botFileName, botDTO);
+        save();
     }
 
     public Set<Message> getMessages() {
