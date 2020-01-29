@@ -31,17 +31,7 @@ public class App {
         }
 
         // create a bot instance
-        print("Open session...");
-        TelegramBot telegramBot;
-        if (token == null) {
-            // try to restore a bot state from the file system
-            telegramBot = new TelegramBot();
-            print(String.format("Use token: %s", telegramBot.getCurrentToken()));
-        } else {
-            print(String.format("Use token: %s", token));
-            telegramBot = new TelegramBot(token);
-        }
-        print(String.format("Bot name: %s", telegramBot.getBotName()));
+        TelegramBot telegramBot = new TelegramBot(token);
 
         // stream messages from API to console
         telegramBot.messageHistoryObservable().concatWith(telegramBot.messageUpdatesObservable()).subscribe(App::print);

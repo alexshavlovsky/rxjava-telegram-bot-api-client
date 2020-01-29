@@ -39,55 +39,33 @@ public class TelegramBot implements AutoCloseable {
     private final Observable<Chat> currentChatObservable = currentChat.asObservable().distinctUntilChanged();
     private long updateOffset = -1;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final CloseableHttpAsyncClient httpClient = HttpAsyncClients.createDefault();
-
-    private void onConstruct() {
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        httpClient.start();
-    }
-
-    private void afterConstruct() {
-        botService.saveUser(thisBot);
-        botService.getMessages().stream().max(Comparator.comparing(Message::getDate))
-                .ifPresent(message -> currentChat.onNext(message.getChat()));
-    }
-
-    private void assertTokenNotNull(String token) {
-        if (token == null) {
-            System.out.println("Can't find any saved token");
-            System.out.println("Please provide an API token via command line argument");
-            System.out.println("You can get a token from BotFather");
-            System.exit(1);
-        }
-    }
-
-    private void assertBotNotNull(User bot) {
-        if (bot == null) {
-            System.out.println("Unable to resolve token");
-            System.exit(1);
-        }
-    }
-
-    public TelegramBot() {
-        onConstruct();
-        tokenStorageService = new TokenStorageService();
-        String token = tokenStorageService.getMostRecentToken();
-        assertTokenNotNull(token);
-        thisBot = resolveBotByTokenBlocking(token);
-        assertBotNotNull(thisBot);
-        botService = new BotService(tokenStorageService.getMostRecentToken());
-        afterConstruct();
-    }
+    private final ObjectMapper objectMapper;
+    private final CloseableHttpAsyncClient httpClient;
 
     public TelegramBot(String token) {
-        onConstruct();
-        thisBot = resolveBotByTokenBlocking(token);
-        assertBotNotNull(thisBot);
         tokenStorageService = new TokenStorageService();
+        if (token == null) {
+            logger.info("Try to load a token from the file system...");
+            token = tokenStorageService.getMostRecentToken();
+            if (token == null) throw BotException.NO_SAVED_TOKEN;
+        }
+        // initialize ObjectMapper and HTTP client
+        objectMapper = new ObjectMapper();
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        httpClient = HttpAsyncClients.createDefault();
+        httpClient.start();
+        logger.info("Validate the token against Telegram API...");
+        thisBot = resolveBotByTokenBlocking(token);
+        if (thisBot == null) throw BotException.TOKEN_VALIDATION_ERROR;
+        // save valid token to storage
         tokenStorageService.saveToken(token);
+        // create a bot service
         botService = new BotService(token);
-        afterConstruct();
+        botService.saveUser(thisBot);
+        logger.info("Current bot name {}", getBotName());
+        // set current chat
+        botService.getMessages().stream().max(Comparator.comparing(Message::getDate))
+                .ifPresent(message -> currentChat.onNext(message.getChat()));
     }
 
     private static String apiUri(String token, String method) {
@@ -188,7 +166,7 @@ public class TelegramBot implements AutoCloseable {
 
     private User resolveBotByTokenBlocking(String token) {
         return parseHttpResponse(apiGetRequest(token, "getMe"), User.class)
-                .doOnError(e -> logger.error("Resolve token through API: {}", e.getMessage()))
+                .doOnError(e -> logger.error("Resolve token against API: {}", e.getMessage()))
                 .onErrorReturn((e) -> null)
                 .toBlocking().single();
     }
