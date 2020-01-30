@@ -1,8 +1,5 @@
 package telegrambot;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
@@ -39,7 +36,6 @@ public class TelegramBot implements AutoCloseable {
     private final Observable<Chat> currentChatObservable = currentChat.asObservable().distinctUntilChanged();
     private long updateOffset = -1;
 
-    private final ObjectMapper objectMapper;
     private final CloseableHttpAsyncClient httpClient;
 
     public TelegramBot(String token) {
@@ -49,9 +45,7 @@ public class TelegramBot implements AutoCloseable {
             token = tokenStorageService.getMostRecentToken();
             if (token == null) throw BotException.NO_SAVED_TOKEN;
         }
-        // initialize ObjectMapper and HTTP client
-        objectMapper = new ObjectMapper();
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        // initialize an HTTP client
         httpClient = HttpAsyncClients.createDefault();
         httpClient.start();
         logger.info("Validate the token against Telegram API...");
@@ -88,24 +82,15 @@ public class TelegramBot implements AutoCloseable {
         }
     }
 
-    private <T> Observable<ApiResponse<T>> parseJson(byte[] response, Class<T> valueType) {
-        JavaType type = objectMapper.getTypeFactory().constructParametricType(ApiResponse.class, valueType);
-        try {
-            return Observable.just(objectMapper.readValue(response, type));
-        } catch (Exception e) {
-            return Observable.error(e);
-        }
-    }
-
     private <T extends ApiResponse> T catchAndPropagateApiError(T response) {
         if (!response.getOk()) throw new RuntimeException(response.toString());
         return response;
     }
 
-    private <T> Observable<T> parseHttpResponse(Observable<ObservableHttpResponse> response, Class<T> valueType) {
+    private <T> Observable<T> parseHttpResponse(Observable<ObservableHttpResponse> response, Class<T> clazz) {
         return response
                 .flatMap(ObservableHttpResponse::getContent)
-                .flatMap(content -> parseJson(content, valueType))
+                .flatMap(content -> ApiResponse.fromByteArray(content, clazz))
                 .map(this::catchAndPropagateApiError)
                 .map(ApiResponse::getResult);
     }
