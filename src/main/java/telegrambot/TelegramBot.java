@@ -1,27 +1,26 @@
 package telegrambot;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
-import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
-import rx.apache.http.ObservableHttp;
-import rx.apache.http.ObservableHttpResponse;
 import rx.schedulers.Schedulers;
 import rx.subjects.ReplaySubject;
-import telegrambot.apimodel.*;
+import telegrambot.apimodel.Chat;
+import telegrambot.apimodel.Message;
+import telegrambot.apimodel.Update;
+import telegrambot.apimodel.User;
+import telegrambot.io.ApiHttpClient;
 import telegrambot.io.BotService;
 import telegrambot.io.TokenStorageService;
+import telegrambot.io.UpdateOffsetHolder;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static telegrambot.io.ApiHttpClient.parseHttpResponse;
 
 
 public class TelegramBot implements AutoCloseable {
@@ -34,9 +33,9 @@ public class TelegramBot implements AutoCloseable {
     private final User thisBot;
     private final ReplaySubject<Chat> currentChat = ReplaySubject.create();
     private final Observable<Chat> currentChatObservable = currentChat.asObservable().distinctUntilChanged();
-    private long updateOffset = -1;
 
-    private final CloseableHttpAsyncClient httpClient;
+    private final ApiHttpClient http;
+    private final UpdateOffsetHolder updateOffset = new UpdateOffsetHolder();
 
     public TelegramBot(String token) {
         tokenStorageService = new TokenStorageService();
@@ -45,15 +44,11 @@ public class TelegramBot implements AutoCloseable {
             token = tokenStorageService.getMostRecentToken();
             if (token == null) throw BotException.NO_SAVED_TOKEN;
         }
-        // initialize an HTTP client
-        httpClient = HttpAsyncClients.createDefault();
-        httpClient.start();
+        http = new ApiHttpClient();
         logger.info("Validate the token against Telegram API...");
-        thisBot = resolveBotByTokenBlocking(token);
+        thisBot = http.validateTokenAgainstApiBlocking(token);
         if (thisBot == null) throw BotException.TOKEN_VALIDATION_ERROR;
-        // save valid token to storage
         tokenStorageService.saveToken(token);
-        // create a bot service
         botService = new BotService(token);
         botService.saveUser(thisBot);
         logger.info("Current bot name {}", getBotName());
@@ -62,65 +57,22 @@ public class TelegramBot implements AutoCloseable {
                 .ifPresent(message -> currentChat.onNext(message.getChat()));
     }
 
-    private static String apiUri(String token, String method) {
-        return String.format("https://api.telegram.org/bot%s/%s", token, method);
+    private String createGetUpdatesMethodWithQuery() {
+        var uri = String.format("getUpdates?timeout=%d", POLLING_TIMEOUT);
+        if (updateOffset.isSet()) uri += String.format("&offset=%d", updateOffset.getNext());
+        return uri;
     }
 
-    private Observable<ObservableHttpResponse> apiGetRequest(String token, String method) {
-        var uri = apiUri(token, method);
-        var producer = HttpAsyncMethods.createGet(uri);
-        return ObservableHttp.createRequest(producer, httpClient).toObservable();
+    private Observable<Message> handleUpdates(Update[] updates) {
+        updateOffset.refresh(updates);
+        return Observable.from(Arrays.stream(updates).map(Update::getMessage).collect(Collectors.toList()));
     }
 
-    private Observable<ObservableHttpResponse> apiPostRequest(String token, String method, String json) {
-        try {
-            var uri = apiUri(token, method);
-            var producer = HttpAsyncMethods.createPost(uri, json, ContentType.APPLICATION_JSON);
-            return ObservableHttp.createRequest(producer, httpClient).toObservable();
-        } catch (UnsupportedEncodingException e) {
-            return Observable.error(e);
-        }
-    }
-
-    private <T extends ApiResponse> T catchAndPropagateApiError(T response) {
-        if (!response.getOk()) throw new RuntimeException(response.toString());
-        return response;
-    }
-
-    private <T> Observable<T> parseHttpResponse(Observable<ObservableHttpResponse> response, Class<T> clazz) {
-        return response
-                .flatMap(ObservableHttpResponse::getContent)
-                .flatMap(content -> ApiResponse.fromByteArray(content, clazz))
-                .map(this::catchAndPropagateApiError)
-                .map(ApiResponse::getResult);
-    }
-
-    private List<Message> handleUpdates(Update[] updates) {
-        refreshUpdateOffset(updates);
-        return Arrays.stream(updates).map(Update::getMessage).collect(Collectors.toList());
-    }
-
-    private void refreshUpdateOffset(Update[] updates) {
-        updateOffset = updates.length > 0 ? updates[updates.length - 1].getUpdate_id() : -1;
-    }
-
-    private static String getUpdatesMethod(long updateOffset) {
-        var uri = "getUpdates";
-        if (updateOffset == -1) return uri;
-        return uri + String.format("?offset=%d&timeout=%d", updateOffset + 1, POLLING_TIMEOUT);
-    }
-
-    public Observable<String> messageHistoryObservable() {
+    private Observable<String> messageUpdatesObservable() {
         return Observable
-                .from(botService.getMessages().stream().sorted(Comparator.comparing(Message::getDate)).collect(Collectors.toList()))
-                .map(m -> MessageFormatter.format(m, botService));
-    }
-
-    public Observable<String> messageUpdatesObservable() {
-        return Observable
-                .defer(() -> parseHttpResponse(apiGetRequest(botService.getToken(), getUpdatesMethod(updateOffset)), Update[].class))
-                .map(this::handleUpdates)
-                .flatMap(Observable::from)
+                .defer(() -> parseHttpResponse(
+                        http.apiGetRequest(botService.getToken(), createGetUpdatesMethodWithQuery()), Update[].class))
+                .flatMap(this::handleUpdates)
                 .doOnNext(botService::saveMessage)
                 .doOnNext(message -> currentChat.onNext(message.getChat()))
                 .map(message -> MessageFormatter.format(message, botService))
@@ -130,9 +82,19 @@ public class TelegramBot implements AutoCloseable {
                 .subscribeOn(Schedulers.io());
     }
 
+    private Observable<String> messageHistoryObservable() {
+        return Observable
+                .from(botService.getMessages().stream().sorted(Comparator.comparing(Message::getDate)).collect(Collectors.toList()))
+                .map(m -> MessageFormatter.format(m, botService));
+    }
+
+    public Observable<String> messageObservable() {
+        return messageHistoryObservable().concatWith(messageUpdatesObservable());
+    }
+
     public Observable<String> sendMessage(Long chatId, String text) {
         var json = String.format("{\"chat_id\":%d,\"text\":\"%s\"}", chatId, text);
-        var response = apiPostRequest(botService.getToken(), "sendMessage", json);
+        var response = http.apiPostRequest(botService.getToken(), "sendMessage", json);
         return parseHttpResponse(response, Message.class)
                 .doOnNext(botService::saveMessage)
                 .map(m -> MessageFormatter.format(m, botService))
@@ -142,18 +104,11 @@ public class TelegramBot implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
-        httpClient.close();
+        http.close();
     }
 
     public Observable<Chat> currentChatObservable() {
         return currentChatObservable;
-    }
-
-    private User resolveBotByTokenBlocking(String token) {
-        return parseHttpResponse(apiGetRequest(token, "getMe"), User.class)
-                .doOnError(e -> logger.error("Resolve token against API: {}", e.getMessage()))
-                .onErrorReturn((e) -> null)
-                .toBlocking().single();
     }
 
     public String getCurrentToken() {

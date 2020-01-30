@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicReference;
 
-
 public class App {
 
     private static void print(String s) {
@@ -34,7 +33,7 @@ public class App {
         TelegramBot telegramBot = new TelegramBot(token);
 
         // stream messages from API to console
-        telegramBot.messageHistoryObservable().concatWith(telegramBot.messageUpdatesObservable()).subscribe(App::print);
+        telegramBot.messageObservable().subscribe(App::print);
 
         // stream current chat events to console
         AtomicReference<Chat> chat = new AtomicReference<>();
