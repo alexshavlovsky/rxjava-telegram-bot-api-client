@@ -14,7 +14,7 @@ public class ApiResponse<T> {
     String description;
     T result;
 
-    public static <T> Observable<ApiResponse<T>> fromByteArray(byte[] response, Class<T> clazz) {
+    public static <T> Observable<ApiResponse<T>> fromByteArrayAsObservable(byte[] response, Class<T> clazz) {
         ObjectMapper objectMapper = ObjectMapperFactory.getInstance();
         JavaType type = objectMapper.getTypeFactory().constructParametricType(ApiResponse.class, clazz);
         try {

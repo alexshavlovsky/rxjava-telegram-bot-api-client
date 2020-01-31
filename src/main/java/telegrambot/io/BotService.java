@@ -26,7 +26,7 @@ public class BotService {
 
     private static String getFileName(String token) {
         int pos = token.indexOf(':');
-        if (pos == -1) throw new RuntimeException("Malformed token");
+        if (pos == -1) throw new RuntimeException("Provided token is malformed");
         return token.substring(0, pos) + BOT_FILE_EXTENSION;
     }
 
@@ -58,9 +58,5 @@ public class BotService {
 
     public Set<Chat> getChats() {
         return Collections.unmodifiableSet(botDTO.chats);
-    }
-
-    public String getToken() {
-        return botDTO.token;
     }
 }

@@ -40,22 +40,23 @@ class MessageFormatter {
         return joinNotNullNotBlank(user.getFirst_name(), user.getLast_name(), user.getUsername());
     }
 
-    private static String formatChat(Chat chat) {
-        return joinNotNullNotBlank(chat.getFirst_name(), chat.getLast_name(), chat.getUsername(), chat.getTitle());
+    static String formatChat(Chat chat) {
+        return joinNotNullNotBlank(chat.getFirst_name(), chat.getLast_name(),
+                chat.getUsername(), chat.getTitle(), "(" + chat.getId() + ")");
     }
 
-    private static String formatDirection(Message message, BotService botService) {
-        return botService.getToken().contains(message.getFrom().getId().toString()) ? ">" : "<";
+    private static String formatDirection(User messageUser, User botUser) {
+        return botUser.equals(messageUser) ? ">" : "<";
     }
 
     private static String formatTime(Date date) {
         return new DateTime(date).toString("HH:mm:ss");
     }
 
-    static String format(Message message, BotService botService) {
+    static String formatMessage(Message message, BotService botService, User botUser) {
         String name = formatName(message.getFrom());
         int nameWidth = updateAndGetMaxNameWidth(name, botService);
-        String dir = formatDirection(message, botService);
+        String dir = formatDirection(message.getFrom(), botUser);
         String time = formatTime(message.getDate());
         return joinNotNullNotBlank(time, appendSpace(name, nameWidth), dir, message.getText());
     }
