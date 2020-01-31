@@ -30,16 +30,15 @@ public class App {
         // stream current chat events to console
         telegramBot.currentChatObservable().subscribe(s -> print("Current chat is set to: " + s));
 
-        print("Current bot: " + telegramBot.getBotName());
-        print("Commands:\n:q - exit");
-        Scanner scanner = new Scanner(System.in);
+        print("Commands:\n\t:q - exit");
 
         // main loop
+        Scanner scanner = new Scanner(System.in);
         while (true) {
-//            if (chat.get() == null) print("A current chat is not assigned. Please send a message to this bot first!");
             String line = scanner.nextLine();
+            if (line.trim().isEmpty()) continue;
             if (":q".equals(line)) break;
-            if (!line.isBlank()) telegramBot.sendMessage(line);
+            telegramBot.sendMessage(line);
         }
 
         print("Close session...");

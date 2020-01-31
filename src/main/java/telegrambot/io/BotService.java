@@ -4,6 +4,7 @@ import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.User;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
@@ -38,6 +39,13 @@ public class BotService {
         botDTO.messages.add(message);
         botDTO.chats.add(message.getChat());
         botDTO.users.add(message.getFrom());
+        save();
+    }
+
+    public void saveAllMessages(Collection<? extends Message> messages) {
+        botDTO.messages.addAll(messages);
+        messages.forEach(m -> botDTO.chats.add(m.getChat()));
+        messages.forEach(m -> botDTO.users.add(m.getFrom()));
         save();
     }
 

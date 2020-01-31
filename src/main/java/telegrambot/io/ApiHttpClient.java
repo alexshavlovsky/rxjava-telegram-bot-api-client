@@ -4,6 +4,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import rx.Observable;
 import rx.apache.http.ObservableHttp;
 import rx.apache.http.ObservableHttpResponse;
@@ -26,15 +27,15 @@ public class ApiHttpClient implements Closeable {
     }
 
     public Observable<ObservableHttpResponse> apiGetRequest(String token, String method) {
-        var uri = apiUri(token, method);
-        var producer = HttpAsyncMethods.createGet(uri);
+        String uri = apiUri(token, method);
+        HttpAsyncRequestProducer producer = HttpAsyncMethods.createGet(uri);
         return ObservableHttp.createRequest(producer, httpClient).toObservable();
     }
 
     public Observable<ObservableHttpResponse> apiPostRequest(String token, String method, String json) {
         try {
-            var uri = apiUri(token, method);
-            var producer = HttpAsyncMethods.createPost(uri, json, ContentType.APPLICATION_JSON);
+            String uri = apiUri(token, method);
+            HttpAsyncRequestProducer producer = HttpAsyncMethods.createPost(uri, json, ContentType.APPLICATION_JSON);
             return ObservableHttp.createRequest(producer, httpClient).toObservable();
         } catch (UnsupportedEncodingException e) {
             return Observable.error(e);

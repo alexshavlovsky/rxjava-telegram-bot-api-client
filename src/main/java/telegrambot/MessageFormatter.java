@@ -33,7 +33,7 @@ class MessageFormatter {
     }
 
     private static String joinNotNullNotBlank(String... entries) {
-        return Arrays.stream(entries).filter(e -> e != null && !e.isBlank()).collect(Collectors.joining(" "));
+        return Arrays.stream(entries).filter(e -> e != null && !e.trim().isEmpty()).collect(Collectors.joining(" "));
     }
 
     static String formatName(User user) {

@@ -3,7 +3,7 @@ package telegrambot;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
-import rx.schedulers.Schedulers;
+import rx.apache.http.ObservableHttpResponse;
 import rx.subjects.PublishSubject;
 import rx.subjects.ReplaySubject;
 import telegrambot.apimodel.Chat;
@@ -18,6 +18,7 @@ import telegrambot.io.UpdateOffsetHolder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -25,19 +26,37 @@ import static telegrambot.io.ApiHttpClient.parseApiHttpResponse;
 
 public class TelegramBot implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(TelegramBot.class);
+
     private final static int POLLING_TIMEOUT = 60;
     private final static int POLLING_REPEAT_DELAY = 5;
     private final static int POLLING_RETRY_DELAY = 10;
+
     private final BotService botService;
-    private final ReplaySubject<Chat> currentChatSubject = ReplaySubject.create();
-    private final PublishSubject<String> userInputSubject = PublishSubject.create();
-    private final Observable<Chat> currentChatObservable = currentChatSubject.asObservable().distinctUntilChanged();
-    private final Observable<String> userInputObservable = userInputSubject.asObservable();
     private final String token;
     private final User botUser;
 
     private final ApiHttpClient http;
     private final UpdateOffsetHolder updateOffset = new UpdateOffsetHolder();
+
+    private final ReplaySubject<Chat> currentChatSubject = ReplaySubject.create();
+    private final PublishSubject<String> userTextInputSubject = PublishSubject.create();
+    private final Observable<Chat> currentChatObservable = currentChatSubject.distinctUntilChanged();
+
+    private final Observable<String> notifyChatNotSet = userTextInputSubject
+            .takeUntil(currentChatObservable)
+            .doOnNext(m -> logger.info("A current chat is not assigned. Please send a message to this bot first!"))
+            .ignoreElements();
+
+    private final Observable<String> outgoingUserText = userTextInputSubject
+            .skipUntil(currentChatObservable)
+            .mergeWith(notifyChatNotSet);
+
+    private final Observable<Message> outgoingMessageAckObservable = Observable
+            .combineLatest(
+                    currentChatObservable,
+                    outgoingUserText,
+                    this::sendMessageAckObservable)
+            .flatMap(o -> o);
 
     public TelegramBot(String token) throws BotException, IOException {
         TokenStorageService tokenStorageService = new TokenStorageService();
@@ -57,79 +76,69 @@ public class TelegramBot implements AutoCloseable {
         tokenStorageService.saveToken(token);
         botService = new BotService(token);
         botService.saveUser(botUser);
-        // set current chat
+        logger.info("Current bot name: {}", MessageFormatter.formatName(botUser));
+        // publish the latest chat from bot service
         botService.getMessages().stream().max(Comparator.comparing(Message::getDate))
                 .ifPresent(message -> currentChatSubject.onNext(message.getChat()));
     }
 
+    private User validateTokenAgainstApiBlocking(String token) {
+        return parseApiHttpResponse(http.apiGetRequest(token, "getMe"), User.class)
+                .doOnError(e -> logger.error("Validate token against API error: {}", e.getMessage()))
+                .onErrorReturn((e) -> null)
+                .toBlocking().single();
+    }
+
+    // TODO: what should we do on error?
+    private Observable<Message> sendMessageAckObservable(Chat chat, String text) {
+        String json = String.format("{\"chat_id\":%d,\"text\":\"%s\"}", chat.getId(), text);
+        Observable<ObservableHttpResponse> response = http.apiPostRequest(token, "sendMessage", json);
+        return parseApiHttpResponse(response, Message.class)
+                .doOnNext(botService::saveMessage)
+                .doOnError(e -> logger.error("Send message error: {}", e.getMessage()));
+    }
+
     private String createGetUpdatesMethodWithQuery() {
-        var uri = String.format("getUpdates?timeout=%d", POLLING_TIMEOUT);
+        String uri = String.format("getUpdates?timeout=%d", POLLING_TIMEOUT);
         if (updateOffset.isSet()) uri += String.format("&offset=%d", updateOffset.getNext());
         return uri;
     }
 
     private Observable<Message> handleUpdates(Update[] updates) {
+        // refresh the update offset
         updateOffset.refresh(updates);
-        return Observable.from(Arrays.stream(updates).map(Update::getMessage).collect(Collectors.toList()));
+        List<Message> messages = Arrays.stream(updates).map(Update::getMessage).collect(Collectors.toList());
+        // update the current chat
+        messages.forEach(m -> currentChatSubject.onNext(m.getChat()));
+        // persist incoming messages
+        botService.saveAllMessages(messages);
+        return Observable.from(messages);
     }
 
-    private void handleIncomingMessage(Message message) {
-        botService.saveMessage(message);
-        currentChatSubject.onNext(message.getChat());
-    }
-
-    private String formatMessage(Message message) {
-        return MessageFormatter.formatMessage(message, botService, botUser);
-    }
-
-    private Observable<String> incomingMessageObservable() {
+    private Observable<Message> incomingMessageObservable() {
         return Observable
                 .defer(() -> parseApiHttpResponse(
                         http.apiGetRequest(token, createGetUpdatesMethodWithQuery()), Update[].class))
                 .flatMap(this::handleUpdates)
-                .doOnNext(this::handleIncomingMessage)
-                .map(this::formatMessage)
-                .doOnError(e -> logger.error("API updates polling: {}", e.getMessage()))
+                .doOnError(e -> logger.error("API updates polling error: {}", e.getMessage()))
                 .repeatWhen(completed -> completed.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
-                .retryWhen(completed -> completed.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS))
-                .subscribeOn(Schedulers.io());
+                .retryWhen(completed -> completed.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS));
     }
 
-    private Observable<String> messageHistoryObservable() {
-        var messages = botService.getMessages().stream().sorted(Comparator.comparing(Message::getDate)).collect(Collectors.toList());
-        return Observable.from(messages).map(this::formatMessage);
-    }
-
-    private Observable<String> outgoingMessageAcknowledgmentObservable() {
-        return Observable.combineLatest(currentChatObservable, userInputObservable,
-                (a, b) -> sendMessage(a.getId(), b)).flatMap(o -> o);
+    private Observable<Message> messageHistoryObservable() {
+        List<Message> messages = botService
+                .getMessages().stream().sorted(Comparator.comparing(Message::getDate)).collect(Collectors.toList());
+        return Observable.from(messages);
     }
 
     public Observable<String> messageObservable() {
         return messageHistoryObservable()
-                .concatWith(incomingMessageObservable()
-                        .mergeWith(outgoingMessageAcknowledgmentObservable()));
+                .concatWith(incomingMessageObservable().mergeWith(outgoingMessageAckObservable))
+                .map(m -> MessageFormatter.formatMessage(m, botService, botUser));
     }
 
     public void sendMessage(String text) {
-        userInputSubject.onNext(text);
-    }
-
-    private Observable<String> sendMessage(Long chatId, String text) {
-        var json = String.format("{\"chat_id\":%d,\"text\":\"%s\"}", chatId, text);
-        var response = http.apiPostRequest(token, "sendMessage", json);
-        return parseApiHttpResponse(response, Message.class)
-                .doOnNext(botService::saveMessage)
-                .map(this::formatMessage)
-                .doOnError(e -> logger.error("Send message: {}", e.getMessage()))
-                .subscribeOn(Schedulers.io());
-    }
-
-    private User validateTokenAgainstApiBlocking(String token) {
-        return parseApiHttpResponse(http.apiGetRequest(token, "getMe"), User.class)
-                .doOnError(e -> logger.error("Validate token against API: {}", e.getMessage()))
-                .onErrorReturn((e) -> null)
-                .toBlocking().single();
+        userTextInputSubject.onNext(text);
     }
 
     @Override
