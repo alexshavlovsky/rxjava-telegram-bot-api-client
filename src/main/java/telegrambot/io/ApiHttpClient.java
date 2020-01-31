@@ -42,7 +42,7 @@ public class ApiHttpClient implements Closeable {
     }
 
     private static <T extends ApiResponse> T catchAndPropagateApiError(T response) {
-        if (!response.getOk()) throw new RuntimeException(response.toString());
+        if (!response.getOk()) throw new RuntimeException(response.getErrorDescription());
         return response;
     }
 

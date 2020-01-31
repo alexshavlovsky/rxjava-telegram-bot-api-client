@@ -4,10 +4,12 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import rx.Observable;
 
 @Getter
 @Setter
+@ToString
 public class ApiResponse<T> {
     Boolean ok;
     Integer error_code;
@@ -22,5 +24,9 @@ public class ApiResponse<T> {
         } catch (Exception e) {
             return Observable.error(e);
         }
+    }
+
+    public String getErrorDescription() {
+        return String.format("%s (%s)", description, error_code);
     }
 }
