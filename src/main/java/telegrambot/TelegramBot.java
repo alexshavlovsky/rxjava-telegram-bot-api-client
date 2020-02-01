@@ -84,18 +84,19 @@ public class TelegramBot implements AutoCloseable {
 
     private User validateTokenAgainstApiBlocking(String token) {
         return parseApiHttpResponse(http.apiGetRequest(token, "getMe"), User.class)
-                .doOnError(e -> logger.error("Validate token against API error: {}", e.getMessage()))
+                .doOnError(e -> logger.error("Validate token against API: {}", e.getMessage()))
                 .onErrorReturn((e) -> null)
                 .toBlocking().single();
     }
 
-    // TODO: what should we do on error?
     private Observable<Message> sendMessageAckObservable(Chat chat, String text) {
         String json = String.format("{\"chat_id\":%d,\"text\":\"%s\"}", chat.getId(), text);
         Observable<ObservableHttpResponse> response = http.apiPostRequest(token, "sendMessage", json);
         return parseApiHttpResponse(response, Message.class)
                 .doOnNext(botService::saveMessage)
-                .doOnError(e -> logger.error("Send message error: {}", e.getMessage()));
+                .doOnError(e -> logger.error("Send message: {}", e.getMessage()))
+                .onExceptionResumeNext(Observable.empty())
+                .onErrorResumeNext(Observable.empty());
     }
 
     private String createGetUpdatesMethodWithQuery() {
@@ -120,7 +121,7 @@ public class TelegramBot implements AutoCloseable {
                 .defer(() -> parseApiHttpResponse(
                         http.apiGetRequest(token, createGetUpdatesMethodWithQuery()), Update[].class))
                 .flatMap(this::handleUpdates)
-                .doOnError(e -> logger.error("API updates polling error: {}", e.getMessage()))
+                .doOnError(e -> logger.error("API updates polling: {}", e.getMessage()))
                 .repeatWhen(completed -> completed.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
                 .retryWhen(completed -> completed.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS));
     }
