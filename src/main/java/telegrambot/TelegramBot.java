@@ -1,11 +1,13 @@
 package telegrambot;
 
+
+import io.reactivex.Completable;
+import io.reactivex.Observable;
+import io.reactivex.Single;
+import io.reactivex.subjects.PublishSubject;
+import io.reactivex.subjects.ReplaySubject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rx.Observable;
-import rx.apache.http.ObservableHttpResponse;
-import rx.subjects.PublishSubject;
-import rx.subjects.ReplaySubject;
 import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.Update;
@@ -15,16 +17,13 @@ import telegrambot.io.BotService;
 import telegrambot.io.TokenStorageService;
 import telegrambot.io.UpdateOffsetHolder;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static telegrambot.io.ApiHttpClient.parseApiHttpResponse;
-
-public class TelegramBot implements AutoCloseable {
+public class TelegramBot {
     private static final Logger logger = LoggerFactory.getLogger(TelegramBot.class);
 
     private final static int POLLING_TIMEOUT = 60;
@@ -42,7 +41,7 @@ public class TelegramBot implements AutoCloseable {
     private final PublishSubject<String> userTextInputSubject = PublishSubject.create();
     private final Observable<Chat> currentChatObservable = currentChatSubject.distinctUntilChanged();
 
-    private final Observable<String> notifyChatNotSet = userTextInputSubject
+    private final Completable notifyChatNotSet = userTextInputSubject
             .takeUntil(currentChatObservable)
             .doOnNext(m -> logger.info("A current chat is not assigned. Please send a message to this bot first!"))
             .ignoreElements();
@@ -56,9 +55,9 @@ public class TelegramBot implements AutoCloseable {
                     currentChatObservable,
                     outgoingUserText,
                     this::sendMessageAckObservable)
-            .flatMap(o -> o);
+            .flatMapSingle(o -> o);
 
-    public TelegramBot(String token) throws BotException, IOException {
+    public TelegramBot(String token) throws BotException {
         TokenStorageService tokenStorageService = new TokenStorageService();
         if (token == null) {
             logger.info("Try to load a token from the file system...");
@@ -67,11 +66,12 @@ public class TelegramBot implements AutoCloseable {
         }
         logger.info("Validate the token against Telegram API...");
         http = new ApiHttpClient();
-        botUser = validateTokenAgainstApiBlocking(token);
-        if (botUser == null) {
-            http.close();
-            throw BotException.TOKEN_VALIDATION_ERROR;
+        try {
+            botUser = validateTokenAgainstApi(token).blockingGet();
+        } catch (Exception e) {
+            throw new BotException("Unable to validate token against Telegram API: " + e.getMessage(), e);
         }
+        if (botUser == null) throw new BotException("Unable to validate token against Telegram API: Bot user is null");
         this.token = token;
         tokenStorageService.saveToken(token);
         botService = new BotService(token);
@@ -82,26 +82,21 @@ public class TelegramBot implements AutoCloseable {
                 .ifPresent(message -> currentChatSubject.onNext(message.getChat()));
     }
 
-    private User validateTokenAgainstApiBlocking(String token) {
-        return parseApiHttpResponse(http.apiGetRequest(token, "getMe"), User.class)
-                .doOnError(e -> logger.error("Validate token against API: {}", e.getMessage()))
-                .onErrorReturn((e) -> null)
-                .toBlocking().single();
+    private Single<User> validateTokenAgainstApi(String token) {
+        return http.apiGetRequest(token, "getMe", "", User.class)
+                .doOnError(e -> logger.error("Validate token against API: {}", e.getMessage()));
     }
 
-    private Observable<Message> sendMessageAckObservable(Chat chat, String text) {
+    private Single<Message> sendMessageAckObservable(Chat chat, String text) {
         String json = String.format("{\"chat_id\":%d,\"text\":\"%s\"}", chat.getId(), text);
-        Observable<ObservableHttpResponse> response = http.apiPostRequest(token, "sendMessage", json);
-        return parseApiHttpResponse(response, Message.class)
-                .doOnNext(botService::saveMessage)
-                .doOnError(e -> logger.error("Send message: {}", e.getMessage()))
-                .onExceptionResumeNext(Observable.empty())
-                .onErrorResumeNext(Observable.empty());
+        return http.apiPostRequest(token, "sendMessage", json, Message.class)
+                .doOnSuccess(botService::saveMessage)
+                .doOnError(e -> logger.error("Send message error: {}", e.getMessage()));
     }
 
-    private String createGetUpdatesMethodWithQuery() {
-        String uri = String.format("getUpdates?timeout=%d", POLLING_TIMEOUT);
-        if (updateOffset.isSet()) uri += String.format("&offset=%d", updateOffset.getNext());
+    private String createGetUpdatesQuery() {
+        String offs= updateOffset.isSet()?String.format("&offset=%d", updateOffset.getNext()):"";
+        String uri = String.format("timeout=%d%s", POLLING_TIMEOUT,offs);
         return uri;
     }
 
@@ -113,14 +108,13 @@ public class TelegramBot implements AutoCloseable {
         messages.forEach(m -> currentChatSubject.onNext(m.getChat()));
         // persist incoming messages
         botService.saveAllMessages(messages);
-        return Observable.from(messages);
+        return Observable.fromIterable(messages);
     }
 
+    // TODO: handle native connection exceptions
     private Observable<Message> incomingMessageObservable() {
-        return Observable
-                .defer(() -> parseApiHttpResponse(
-                        http.apiGetRequest(token, createGetUpdatesMethodWithQuery()), Update[].class))
-                .flatMap(this::handleUpdates)
+        return Single.defer(() -> http.apiGetRequest(token, "getUpdates", createGetUpdatesQuery(), Update[].class))
+                .flatMapObservable(this::handleUpdates)
                 .doOnError(e -> logger.error("API updates polling: {}", e.getMessage()))
                 .repeatWhen(completed -> completed.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
                 .retryWhen(completed -> completed.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS));
@@ -129,7 +123,7 @@ public class TelegramBot implements AutoCloseable {
     private Observable<Message> messageHistoryObservable() {
         List<Message> messages = botService
                 .getMessages().stream().sorted(Comparator.comparing(Message::getDate)).collect(Collectors.toList());
-        return Observable.from(messages);
+        return Observable.fromIterable(messages);
     }
 
     public Observable<String> messageObservable() {
@@ -140,11 +134,6 @@ public class TelegramBot implements AutoCloseable {
 
     public void sendMessage(String text) {
         userTextInputSubject.onNext(text);
-    }
-
-    @Override
-    public void close() throws IOException {
-        http.close();
     }
 
     public Observable<String> currentChatObservable() {

@@ -1,7 +1,6 @@
 import telegrambot.BotException;
 import telegrambot.TelegramBot;
 
-import java.io.IOException;
 import java.util.Scanner;
 
 public class App {
@@ -10,7 +9,7 @@ public class App {
         System.out.println(s);
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
 
         // parse command line arguments
         String token = CliParser.parseToken(args);
@@ -42,6 +41,5 @@ public class App {
         }
 
         print("Close session...");
-        telegramBot.close();
     }
 }

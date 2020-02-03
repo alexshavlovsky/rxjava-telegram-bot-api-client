@@ -1,62 +1,91 @@
 package telegrambot.io;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
-import org.apache.http.nio.client.methods.HttpAsyncMethods;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import rx.Observable;
-import rx.apache.http.ObservableHttp;
-import rx.apache.http.ObservableHttpResponse;
+import io.reactivex.Single;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.adapter.rxjava.RxJava2Adapter;
+import reactor.core.publisher.Mono;
 import telegrambot.apimodel.ApiResponse;
+import telegrambot.apimodel.Message;
+import telegrambot.apimodel.Update;
+import telegrambot.apimodel.User;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import javax.management.modelmbean.InvalidTargetObjectTypeException;
+import java.util.HashMap;
+import java.util.Map;
 
-public class ApiHttpClient implements Closeable {
-    private final CloseableHttpAsyncClient httpClient;
+public class ApiHttpClient {
+
+    private static final Map<Class, ParameterizedTypeReference> TYPE_REFERENCES = new HashMap<>(2);
+
+    static {
+        TYPE_REFERENCES.put(User.class, new ParameterizedTypeReference<ApiResponse<User>>() {
+        });
+        TYPE_REFERENCES.put(Message.class, new ParameterizedTypeReference<ApiResponse<Message>>() {
+        });
+        TYPE_REFERENCES.put(Update[].class, new ParameterizedTypeReference<ApiResponse<Update[]>>() {
+        });
+    }
+
+    private <T> ParameterizedTypeReference<ApiResponse<T>> getTypeRef(Class<T> clazz) throws InvalidTargetObjectTypeException {
+        if (!TYPE_REFERENCES.containsKey(clazz))
+            throw new InvalidTargetObjectTypeException(clazz.toString());
+        return TYPE_REFERENCES.get(clazz);
+    }
+
+    private final WebClient httpClient;
 
     public ApiHttpClient() {
-        httpClient = HttpAsyncClients.createDefault();
-        httpClient.start();
+        httpClient = WebClient.builder().baseUrl("https://api.telegram.org").build();
     }
 
-    private static String apiUri(String token, String method) {
-        return String.format("https://api.telegram.org/bot%s/%s", token, method);
+    private WebClient.RequestBodySpec prepareRequestBody(HttpMethod httpMethod, String token, String method, String query) {
+        return httpClient
+                .method(httpMethod)
+                .uri(uriBuilder -> uriBuilder
+                        .path("/bot{token}/{method}")
+                        .query(query)
+                        .build(token, method))
+                .accept(MediaType.APPLICATION_JSON);
     }
 
-    public Observable<ObservableHttpResponse> apiGetRequest(String token, String method) {
-        String uri = apiUri(token, method);
-        HttpAsyncRequestProducer producer = HttpAsyncMethods.createGet(uri);
-        return ObservableHttp.createRequest(producer, httpClient).toObservable();
-    }
-
-    public Observable<ObservableHttpResponse> apiPostRequest(String token, String method, String json) {
+    private <T> Mono<T> apiGetRequestMono(String token, String method, String query, Class<T> clazz) {
         try {
-            String uri = apiUri(token, method);
-            HttpAsyncRequestProducer producer = HttpAsyncMethods.createPost(uri, json, ContentType.APPLICATION_JSON);
-            return ObservableHttp.createRequest(producer, httpClient).toObservable();
-        } catch (UnsupportedEncodingException e) {
-            return Observable.error(e);
+            return prepareRequestBody(HttpMethod.GET, token, method, query)
+                    .retrieve()
+                    .bodyToMono(getTypeRef(clazz))
+                    .flatMap(ApiHttpClient::catchAndPropagateApiError);
+        } catch (InvalidTargetObjectTypeException e) {
+            return Mono.error(e);
         }
     }
 
-    private static <T extends ApiResponse> T catchAndPropagateApiError(T response) {
-        if (!response.getOk()) throw new RuntimeException(response.getErrorDescription());
-        return response;
+    private <T> Mono<T> apiPostRequestMono(String token, String method, String json, Class<T> clazz) {
+        try {
+            return prepareRequestBody(HttpMethod.POST, token, method, "")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(json)
+                    .retrieve()
+                    .bodyToMono(getTypeRef(clazz))
+                    .flatMap(ApiHttpClient::catchAndPropagateApiError);
+        } catch (InvalidTargetObjectTypeException e) {
+            return Mono.error(e);
+        }
     }
 
-    public static <T> Observable<T> parseApiHttpResponse(Observable<ObservableHttpResponse> response, Class<T> clazz) {
-        return response
-                .flatMap(ObservableHttpResponse::getContent)
-                .flatMap(content -> ApiResponse.fromByteArrayAsObservable(content, clazz))
-                .map(ApiHttpClient::catchAndPropagateApiError)
-                .map(ApiResponse::getResult);
+    private static <T> Mono<T> catchAndPropagateApiError(ApiResponse<T> response) {
+        if (!response.getOk()) return Mono.error(new RuntimeException(response.getErrorDescription()));
+        return Mono.just(response.getResult());
     }
 
-    @Override
-    public void close() throws IOException {
-        httpClient.close();
+    public <T> Single<T> apiGetRequest(String token, String method, String query, Class<T> clazz) {
+        return RxJava2Adapter.monoToSingle(apiGetRequestMono(token, method, query, clazz));
     }
+
+    public <T> Single<T> apiPostRequest(String token, String method, String json, Class<T> clazz) {
+        return RxJava2Adapter.monoToSingle(apiPostRequestMono(token, method, json, clazz));
+    }
+
 }
