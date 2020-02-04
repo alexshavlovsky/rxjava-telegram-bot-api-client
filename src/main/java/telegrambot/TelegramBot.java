@@ -12,10 +12,12 @@ import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.Update;
 import telegrambot.apimodel.User;
-import telegrambot.httpclient.HttpClientFactory;
 import telegrambot.httpclient.HttpClient;
+import telegrambot.httpclient.HttpClientFactory;
 import telegrambot.httpclient.HttpClientType;
-import telegrambot.io.*;
+import telegrambot.io.BotService;
+import telegrambot.io.TokenStorageService;
+import telegrambot.io.UpdateOffsetHolder;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -72,10 +74,6 @@ public class TelegramBot implements AutoCloseable {
             http.close();
             throw new BotException("Unable to validate token against Telegram API: " + e.getMessage(), e);
         }
-        if (botUser == null) {
-            http.close();
-            throw new BotException("Unable to validate token against Telegram API: Bot user is null");
-        }
         this.token = token;
         tokenStorageService.saveToken(token);
         botService = new BotService(token);
@@ -95,8 +93,10 @@ public class TelegramBot implements AutoCloseable {
         String json = String.format("{\"chat_id\":%d,\"text\":\"%s\"}", chat.getId(), text);
         return http.apiPostRequest(token, "sendMessage", json, Message.class)
                 .doOnSuccess(botService::saveMessage)
-                .doOnError(e -> logger.error("Send message error: {}", e.getMessage()))
-                .onErrorResumeNext(e -> Single.never());
+                .onErrorResumeNext(e -> {
+                    logger.error("Send message error: {}", e.getMessage());
+                    return Single.never();
+                });
     }
 
     private String createGetUpdatesQuery() {
@@ -115,13 +115,12 @@ public class TelegramBot implements AutoCloseable {
         return Observable.fromIterable(messages);
     }
 
-    // TODO: handle native connection exceptions
     private Observable<Message> incomingMessageObservable() {
         return Single.defer(() -> http.apiGetRequest(token, "getUpdates", createGetUpdatesQuery(), Update[].class))
                 .flatMapObservable(this::handleUpdates)
                 .doOnError(e -> logger.error("API updates polling: {}", e.getMessage()))
-                .repeatWhen(completed -> completed.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
-                .retryWhen(completed -> completed.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS));
+                .repeatWhen(handler -> handler.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
+                .retryWhen(handler -> handler.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS));
     }
 
     private Observable<Message> messageHistoryObservable() {

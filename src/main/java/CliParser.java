@@ -7,15 +7,13 @@ class CliParser {
         throw new AssertionError();
     }
 
-    private static Options options = createOptions();
+    private static Options OPTIONS = new Options();
 
-    private static Options createOptions() {
-        Options res = new Options();
-        res
+    static {
+        OPTIONS
                 .addOption("h", false, "print this message")
                 .addOption("t", true, "telegram Bot API token to use\n(default - most recently used token)")
                 .addOption("c", true, "http client to use\n<apache> - Apache HttpAsyncClient (default)\n<spring> - Spring Project Reactor WebClient");
-        return res;
     }
 
     static class CliOptions {
@@ -23,19 +21,27 @@ class CliParser {
         HttpClientType httpClientType = HttpClientType.APACHE_HTTP_ASYNC_CLIENT;
     }
 
+    static void printHelpAndExit(int status) {
+        HelpFormatter formatter = new HelpFormatter();
+        String syntax = "java -jar telebot.jar -t TELEGRAM_BOT_API_TOKEN";
+        formatter.printHelp(syntax, CliParser.OPTIONS);
+        System.exit(status);
+    }
+
     static CliOptions parseArguments(String[] args) {
         CommandLineParser parser = new DefaultParser();
         CliOptions cliOptions = new CliOptions();
         try {
-            CommandLine line = parser.parse(CliParser.options, args);
-            if (line.hasOption("h")) {
-                HelpFormatter formatter = new HelpFormatter();
-                formatter.printHelp("java -jar telebot.jar -t TELEGRAM_BOT_API_TOKEN", CliParser.options);
-                System.exit(0);
-            }
+
+            CommandLine line = parser.parse(CliParser.OPTIONS, args);
+
+            if (line.hasOption("h")) printHelpAndExit(0);
+
             cliOptions.token = line.getOptionValue("t");
-            String clientId = line.getOptionValue("c");
-            if ("spring".equals(clientId)) cliOptions.httpClientType = HttpClientType.SPRING_WEB_CLIENT;
+
+            String clientKey = line.getOptionValue("c");
+            if ("spring".equals(clientKey)) cliOptions.httpClientType = HttpClientType.SPRING_WEB_CLIENT;
+
         } catch (ParseException e) {
             System.out.println("Unexpected exception while parsing program arguments: " + e.getMessage());
         }

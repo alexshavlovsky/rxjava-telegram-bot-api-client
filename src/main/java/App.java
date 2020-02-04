@@ -20,16 +20,16 @@ public class App {
             telegramBot = new TelegramBot(cliOptions.token, cliOptions.httpClientType);
         } catch (BotException e) {
             print("Unable to initialize: " + e.getMessage());
-            System.exit(1);
+            CliParser.printHelpAndExit(1);
         }
 
         // stream messages from API to console
-        telegramBot.messageObservable().subscribe(App::print,e->print("error"+e.toString()),()->print("complete"));
+        telegramBot.messageObservable().subscribe(App::print);
 
         // stream current chat events to console
         telegramBot.currentChatObservable().subscribe(s -> print("Current chat is set to: " + s));
 
-        print("Commands:\n\t:q - exit");
+        print("Type :q to exit");
 
         // main loop
         Scanner scanner = new Scanner(System.in);
