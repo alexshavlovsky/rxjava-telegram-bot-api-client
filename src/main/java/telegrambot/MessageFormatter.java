@@ -1,5 +1,6 @@
 package telegrambot;
 
+import ch.qos.logback.classic.spi.LoggingEvent;
 import org.joda.time.DateTime;
 import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
@@ -61,4 +62,19 @@ class MessageFormatter {
         return joinNotNullNotBlank(time, appendSpace(name, nameWidth), dir, message.getText());
     }
 
+    private static String formatParametrizedLogMessage(String f, Object... args) {
+        return String.format(f.replace("{}", "%s"), args);
+    }
+
+    private static String formatLogMessage(LoggingEvent e) {
+        Object[] args = e.getArgumentArray();
+        if (args == null || args.length == 0) return e.getMessage();
+        return formatParametrizedLogMessage(e.getMessage(), args);
+    }
+
+    static String formatLoggingEvent(LoggingEvent e) {
+        String time = formatTime(new Date(e.getTimeStamp()));
+        String message = formatLogMessage(e);
+        return joinNotNullNotBlank(time, appendSpace(e.getLevel().toString(), 5), message);
+    }
 }
