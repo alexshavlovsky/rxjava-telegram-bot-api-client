@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-public class TelegramBot {
+public class TelegramBot implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(TelegramBot.class);
 
     private final static int POLLING_TIMEOUT = 60;
@@ -54,7 +54,7 @@ public class TelegramBot {
                     this::sendMessageAckObservable)
             .flatMapSingle(o -> o);
 
-    public TelegramBot(String token) throws BotException {
+    public TelegramBot(String token, HttpClientType clientType) throws Exception {
         TokenStorageService tokenStorageService = new TokenStorageService();
         if (token == null) {
             logger.info("Try to load a token from the file system...");
@@ -62,13 +62,19 @@ public class TelegramBot {
             if (token == null) throw BotException.NO_SAVED_TOKEN;
         }
         logger.info("Validate the token against Telegram API...");
-        http = new SpringWebClient();
+        http = clientType == HttpClientType.APACHE_HTTP_ASYNC_CLIENT ?
+                new ApacheHttpAsyncClient() :
+                new SpringWebClient();
         try {
             botUser = validateTokenAgainstApi(token).blockingGet();
         } catch (Exception e) {
+            http.close();
             throw new BotException("Unable to validate token against Telegram API: " + e.getMessage(), e);
         }
-        if (botUser == null) throw new BotException("Unable to validate token against Telegram API: Bot user is null");
+        if (botUser == null) {
+            http.close();
+            throw new BotException("Unable to validate token against Telegram API: Bot user is null");
+        }
         this.token = token;
         tokenStorageService.saveToken(token);
         botService = new BotService(token);
@@ -88,13 +94,13 @@ public class TelegramBot {
         String json = String.format("{\"chat_id\":%d,\"text\":\"%s\"}", chat.getId(), text);
         return http.apiPostRequest(token, "sendMessage", json, Message.class)
                 .doOnSuccess(botService::saveMessage)
-                .doOnError(e -> logger.error("Send message error: {}", e.getMessage()));
+                .doOnError(e -> logger.error("Send message error: {}", e.getMessage()))
+                .onErrorResumeNext(e -> Single.never());
     }
 
     private String createGetUpdatesQuery() {
-        String offs= updateOffset.isSet()?String.format("&offset=%d", updateOffset.getNext()):"";
-        String uri = String.format("timeout=%d%s", POLLING_TIMEOUT,offs);
-        return uri;
+        String offs = updateOffset.isSet() ? String.format("&offset=%d", updateOffset.getNext()) : "";
+        return String.format("timeout=%d%s", POLLING_TIMEOUT, offs);
     }
 
     private Observable<Message> handleUpdates(Update[] updates) {
@@ -143,5 +149,10 @@ public class TelegramBot {
 
     public String getBotName() {
         return MessageFormatter.formatName(botUser);
+    }
+
+    @Override
+    public void close() throws Exception {
+        http.close();
     }
 }

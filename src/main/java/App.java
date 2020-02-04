@@ -9,22 +9,22 @@ public class App {
         System.out.println(s);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
 
         // parse command line arguments
-        String token = CliParser.parseToken(args);
+        CliParser.CliOptions cliOptions = CliParser.parseArguments(args);
 
         // create a bot instance
         TelegramBot telegramBot = null;
         try {
-            telegramBot = new TelegramBot(token);
+            telegramBot = new TelegramBot(cliOptions.token, cliOptions.httpClientType);
         } catch (BotException e) {
             print("Unable to initialize: " + e.getMessage());
             System.exit(1);
         }
 
         // stream messages from API to console
-        telegramBot.messageObservable().subscribe(App::print);
+        telegramBot.messageObservable().subscribe(App::print,e->print("error"+e.toString()),()->print("complete"));
 
         // stream current chat events to console
         telegramBot.currentChatObservable().subscribe(s -> print("Current chat is set to: " + s));
@@ -41,5 +41,6 @@ public class App {
         }
 
         print("Close session...");
+        telegramBot.close();
     }
 }
