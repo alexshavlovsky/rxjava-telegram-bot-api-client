@@ -12,6 +12,9 @@ import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.Update;
 import telegrambot.apimodel.User;
+import telegrambot.httpclient.HttpClientFactory;
+import telegrambot.httpclient.HttpClient;
+import telegrambot.httpclient.HttpClientType;
 import telegrambot.io.*;
 
 import java.util.Arrays;
@@ -31,7 +34,7 @@ public class TelegramBot implements AutoCloseable {
     private final String token;
     private final User botUser;
 
-    private final ApiHttpClientInterface http;
+    private final HttpClient http;
     private final UpdateOffsetHolder updateOffset = new UpdateOffsetHolder();
 
     private final ReplaySubject<Chat> currentChatSubject = ReplaySubject.create();
@@ -62,9 +65,7 @@ public class TelegramBot implements AutoCloseable {
             if (token == null) throw BotException.NO_SAVED_TOKEN;
         }
         logger.info("Validate the token against Telegram API...");
-        http = clientType == HttpClientType.APACHE_HTTP_ASYNC_CLIENT ?
-                new ApacheHttpAsyncClient() :
-                new SpringWebClient();
+        http = HttpClientFactory.newInstance(clientType);
         try {
             botUser = validateTokenAgainstApi(token).blockingGet();
         } catch (Exception e) {

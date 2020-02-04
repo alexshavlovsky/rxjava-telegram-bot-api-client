@@ -1,4 +1,4 @@
-package telegrambot.io;
+package telegrambot.httpclient;
 
 import hu.akarnokd.rxjava.interop.RxJavaInterop;
 import io.reactivex.Single;
@@ -15,10 +15,10 @@ import telegrambot.apimodel.ApiResponse;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
-public class ApacheHttpAsyncClient implements ApiHttpClientInterface {
+class ApacheHttpAsyncClient implements HttpClient {
     private final CloseableHttpAsyncClient httpClient;
 
-    public ApacheHttpAsyncClient() {
+    ApacheHttpAsyncClient() {
         httpClient = HttpAsyncClients.createDefault();
         httpClient.start();
     }

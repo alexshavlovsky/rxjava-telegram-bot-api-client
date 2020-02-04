@@ -1,4 +1,4 @@
-package telegrambot.io;
+package telegrambot.httpclient;
 
 public enum HttpClientType {
     APACHE_HTTP_ASYNC_CLIENT,

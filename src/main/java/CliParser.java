@@ -1,5 +1,5 @@
 import org.apache.commons.cli.*;
-import telegrambot.io.HttpClientType;
+import telegrambot.httpclient.HttpClientType;
 
 class CliParser {
 
@@ -26,7 +26,6 @@ class CliParser {
     static CliOptions parseArguments(String[] args) {
         CommandLineParser parser = new DefaultParser();
         CliOptions cliOptions = new CliOptions();
-        String token = null;
         try {
             CommandLine line = parser.parse(CliParser.options, args);
             if (line.hasOption("h")) {
@@ -37,7 +36,6 @@ class CliParser {
             cliOptions.token = line.getOptionValue("t");
             String clientId = line.getOptionValue("c");
             if ("spring".equals(clientId)) cliOptions.httpClientType = HttpClientType.SPRING_WEB_CLIENT;
-            System.out.println(cliOptions.httpClientType);
         } catch (ParseException e) {
             System.out.println("Unexpected exception while parsing program arguments: " + e.getMessage());
         }

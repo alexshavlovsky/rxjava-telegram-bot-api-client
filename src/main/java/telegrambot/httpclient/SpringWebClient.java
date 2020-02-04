@@ -1,4 +1,4 @@
-package telegrambot.io;
+package telegrambot.httpclient;
 
 import io.reactivex.Single;
 import org.springframework.core.ParameterizedTypeReference;
@@ -16,7 +16,7 @@ import javax.management.modelmbean.InvalidTargetObjectTypeException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SpringWebClient implements ApiHttpClientInterface {
+class SpringWebClient implements HttpClient {
 
     private static final Map<Class, ParameterizedTypeReference> TYPE_REFERENCES = new HashMap<>(2);
 
@@ -37,7 +37,7 @@ public class SpringWebClient implements ApiHttpClientInterface {
 
     private final WebClient httpClient;
 
-    public SpringWebClient() {
+    SpringWebClient() {
         httpClient = WebClient.builder().baseUrl("https://api.telegram.org").build();
     }
 
