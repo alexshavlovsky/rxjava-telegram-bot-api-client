@@ -12,10 +12,7 @@ import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.Update;
 import telegrambot.apimodel.User;
-import telegrambot.io.ApiHttpClient;
-import telegrambot.io.BotService;
-import telegrambot.io.TokenStorageService;
-import telegrambot.io.UpdateOffsetHolder;
+import telegrambot.io.*;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -34,7 +31,7 @@ public class TelegramBot {
     private final String token;
     private final User botUser;
 
-    private final ApiHttpClient http;
+    private final ApiHttpClientInterface http;
     private final UpdateOffsetHolder updateOffset = new UpdateOffsetHolder();
 
     private final ReplaySubject<Chat> currentChatSubject = ReplaySubject.create();
@@ -65,7 +62,7 @@ public class TelegramBot {
             if (token == null) throw BotException.NO_SAVED_TOKEN;
         }
         logger.info("Validate the token against Telegram API...");
-        http = new ApiHttpClient();
+        http = new SpringWebClient();
         try {
             botUser = validateTokenAgainstApi(token).blockingGet();
         } catch (Exception e) {

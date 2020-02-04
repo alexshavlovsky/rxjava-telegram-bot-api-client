@@ -16,7 +16,7 @@ import javax.management.modelmbean.InvalidTargetObjectTypeException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ApiHttpClient {
+public class SpringWebClient implements ApiHttpClientInterface {
 
     private static final Map<Class, ParameterizedTypeReference> TYPE_REFERENCES = new HashMap<>(2);
 
@@ -37,7 +37,7 @@ public class ApiHttpClient {
 
     private final WebClient httpClient;
 
-    public ApiHttpClient() {
+    public SpringWebClient() {
         httpClient = WebClient.builder().baseUrl("https://api.telegram.org").build();
     }
 
@@ -56,7 +56,7 @@ public class ApiHttpClient {
             return prepareRequestBody(HttpMethod.GET, token, method, query)
                     .retrieve()
                     .bodyToMono(getTypeRef(clazz))
-                    .flatMap(ApiHttpClient::catchAndPropagateApiError);
+                    .flatMap(SpringWebClient::catchAndPropagateApiError);
         } catch (InvalidTargetObjectTypeException e) {
             return Mono.error(e);
         }
@@ -69,7 +69,7 @@ public class ApiHttpClient {
                     .bodyValue(json)
                     .retrieve()
                     .bodyToMono(getTypeRef(clazz))
-                    .flatMap(ApiHttpClient::catchAndPropagateApiError);
+                    .flatMap(SpringWebClient::catchAndPropagateApiError);
         } catch (InvalidTargetObjectTypeException e) {
             return Mono.error(e);
         }
@@ -80,12 +80,18 @@ public class ApiHttpClient {
         return Mono.just(response.getResult());
     }
 
+    @Override
     public <T> Single<T> apiGetRequest(String token, String method, String query, Class<T> clazz) {
         return RxJava2Adapter.monoToSingle(apiGetRequestMono(token, method, query, clazz));
     }
 
+    @Override
     public <T> Single<T> apiPostRequest(String token, String method, String json, Class<T> clazz) {
         return RxJava2Adapter.monoToSingle(apiPostRequestMono(token, method, json, clazz));
     }
 
+    @Override
+    public void close() {
+        // this implementation do nothing
+    }
 }
