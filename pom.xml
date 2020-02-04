@@ -97,6 +97,8 @@
                             <goal>single</goal>
                         </goals>
                         <configuration>
+                            <finalName>telebot</finalName>
+                            <appendAssemblyId>false</appendAssemblyId>
                             <archive>
                                 <manifest>
                                     <mainClass>
