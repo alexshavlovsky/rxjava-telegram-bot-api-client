@@ -13,7 +13,7 @@ import rx.apache.http.ObservableHttpResponse;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
-class ApacheHttpAsyncClient implements HttpClient {
+final class ApacheHttpAsyncClient extends AbstractHttpClientApiAdapter {
     private final CloseableHttpAsyncClient httpClient;
 
     ApacheHttpAsyncClient() {
@@ -34,13 +34,15 @@ class ApacheHttpAsyncClient implements HttpClient {
         ).singleOrError();
     }
 
-    private Single<byte[]> getRequest(String token, String method) {
-        String uri = apiUri(token, method);
+    @Override
+    Single<byte[]> getRequest(String token, String method, String query) {
+        String uri = apiUri(token, method + "?" + query);
         HttpAsyncRequestProducer producer = HttpAsyncMethods.createGet(uri);
         return createRequest(producer);
     }
 
-    private Single<byte[]> postRequest(String token, String method, String json) {
+    @Override
+    Single<byte[]> postRequest(String token, String method, String json) {
         try {
             String uri = apiUri(token, method);
             HttpAsyncRequestProducer producer = HttpAsyncMethods.createPost(uri, json, ContentType.APPLICATION_JSON);
@@ -48,16 +50,6 @@ class ApacheHttpAsyncClient implements HttpClient {
         } catch (UnsupportedEncodingException e) {
             return Single.error(e);
         }
-    }
-
-    @Override
-    public <T> Single<T> apiGetRequest(String token, String method, String query, Class<T> clazz) {
-        return ApiResponseAdapter.fromByteArray(getRequest(token, method + "?" + query), clazz);
-    }
-
-    @Override
-    public <T> Single<T> apiPostRequest(String token, String method, String json, Class<T> clazz) {
-        return ApiResponseAdapter.fromByteArray(postRequest(token, method, json), clazz);
     }
 
     @Override

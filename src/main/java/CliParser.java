@@ -40,7 +40,7 @@ class CliParser {
             cliOptions.token = line.getOptionValue("t");
 
             String clientKey = line.getOptionValue("c");
-            if ("spring".equals(clientKey)) cliOptions.httpClientType = HttpClientType.SPRING_WEB_CLIENT;
+            if ("spring".equals(clientKey)) cliOptions.httpClientType = HttpClientType.SPRING_REACTOR_WEB_CLIENT;
 
         } catch (ParseException e) {
             System.out.println("Unexpected exception while parsing program arguments: " + e.getMessage());

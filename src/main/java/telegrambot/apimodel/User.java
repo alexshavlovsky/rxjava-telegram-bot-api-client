@@ -1,15 +1,10 @@
 package telegrambot.apimodel;
 
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
 
 import java.io.Serializable;
 
-@Getter
-@Setter
-@ToString
+@Data
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class User implements Serializable {
     @EqualsAndHashCode.Include

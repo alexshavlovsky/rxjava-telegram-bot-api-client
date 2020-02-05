@@ -4,9 +4,7 @@ import lombok.*;
 
 import java.io.Serializable;
 
-@Getter
-@Setter
-@ToString
+@Data
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Chat implements Serializable {
     @EqualsAndHashCode.Include

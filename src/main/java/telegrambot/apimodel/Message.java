@@ -1,17 +1,12 @@
 package telegrambot.apimodel;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
 
 import java.io.Serializable;
 import java.util.Date;
 
-@Getter
-@Setter
-@ToString
+@Data
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Message implements Serializable {
     @EqualsAndHashCode.Include
