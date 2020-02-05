@@ -1,4 +1,4 @@
-package telegrambot.apimodel;
+package telegrambot.httpclient;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;

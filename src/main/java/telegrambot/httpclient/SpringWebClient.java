@@ -13,6 +13,7 @@ import telegrambot.apimodel.Update;
 import telegrambot.apimodel.User;
 
 import javax.management.modelmbean.InvalidTargetObjectTypeException;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -76,7 +77,7 @@ class SpringWebClient implements HttpClient {
     }
 
     private static <T> Mono<T> catchAndPropagateApiError(ApiResponse<T> response) {
-        if (!response.getOk()) return Mono.error(new RuntimeException(response.getErrorDescription()));
+        if (!response.getOk()) return Mono.error(new IOException(response.getErrorDescription()));
         return Mono.just(response.getResult());
     }
 

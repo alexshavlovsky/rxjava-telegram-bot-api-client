@@ -7,10 +7,8 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import rx.Observable;
 import rx.apache.http.ObservableHttp;
 import rx.apache.http.ObservableHttpResponse;
-import telegrambot.apimodel.ApiResponse;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -27,51 +25,43 @@ class ApacheHttpAsyncClient implements HttpClient {
         return String.format("https://api.telegram.org/bot%s/%s", token, method);
     }
 
-    private Observable<ObservableHttpResponse> apiGetRequest(String token, String method) {
-        String uri = apiUri(token, method);
-        HttpAsyncRequestProducer producer = HttpAsyncMethods.createGet(uri);
-        return ObservableHttp.createRequest(producer, httpClient).toObservable();
+    private Single<byte[]> createRequest(HttpAsyncRequestProducer producer) {
+        return RxJavaInterop.toV2Observable(
+                ObservableHttp
+                        .createRequest(producer, httpClient)
+                        .toObservable()
+                        .flatMap(ObservableHttpResponse::getContent)
+        ).singleOrError();
     }
 
-    private Observable<ObservableHttpResponse> apiPostRequest(String token, String method, String json) {
+    private Single<byte[]> getRequest(String token, String method) {
+        String uri = apiUri(token, method);
+        HttpAsyncRequestProducer producer = HttpAsyncMethods.createGet(uri);
+        return createRequest(producer);
+    }
+
+    private Single<byte[]> postRequest(String token, String method, String json) {
         try {
             String uri = apiUri(token, method);
             HttpAsyncRequestProducer producer = HttpAsyncMethods.createPost(uri, json, ContentType.APPLICATION_JSON);
-            return ObservableHttp.createRequest(producer, httpClient).toObservable();
+            return createRequest(producer);
         } catch (UnsupportedEncodingException e) {
-            return Observable.error(e);
+            return Single.error(e);
         }
     }
 
-    private static <T extends ApiResponse> T catchAndPropagateApiError(T response) {
-        if (!response.getOk()) throw new RuntimeException(response.getErrorDescription());
-        return response;
+    @Override
+    public <T> Single<T> apiGetRequest(String token, String method, String query, Class<T> clazz) {
+        return ApiResponseAdapter.fromByteArray(getRequest(token, method + "?" + query), clazz);
     }
 
-    private static <T> Observable<T> parseApiHttpResponse(Observable<ObservableHttpResponse> response, Class<T> clazz) {
-        return response
-                .flatMap(ObservableHttpResponse::getContent)
-                .flatMap(content -> ApiResponse.fromByteArrayAsObservable(content, clazz))
-                .map(ApacheHttpAsyncClient::catchAndPropagateApiError)
-                .map(ApiResponse::getResult);
+    @Override
+    public <T> Single<T> apiPostRequest(String token, String method, String json, Class<T> clazz) {
+        return ApiResponseAdapter.fromByteArray(postRequest(token, method, json), clazz);
     }
 
     @Override
     public void close() throws IOException {
         httpClient.close();
-    }
-
-    private static <T> Single<T> responseToSingle(Observable<ObservableHttpResponse> response, Class<T> clazz) {
-        return RxJavaInterop.toV2Observable(parseApiHttpResponse(response, clazz)).singleOrError();
-    }
-
-    @Override
-    public <T> Single<T> apiGetRequest(String token, String method, String query, Class<T> clazz) {
-        return responseToSingle(apiGetRequest(token, method + "?" + query), clazz);
-    }
-
-    @Override
-    public <T> Single<T> apiPostRequest(String token, String method, String json, Class<T> clazz) {
-        return responseToSingle(apiPostRequest(token, method, json), clazz);
     }
 }
