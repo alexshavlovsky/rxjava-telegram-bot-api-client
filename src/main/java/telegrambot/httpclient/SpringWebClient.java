@@ -46,6 +46,6 @@ final class SpringWebClient extends AbstractHttpClientApiAdapter {
 
     @Override
     public void close() {
-        // this implementation do nothing
+        // this implementation does nothing
     }
 }

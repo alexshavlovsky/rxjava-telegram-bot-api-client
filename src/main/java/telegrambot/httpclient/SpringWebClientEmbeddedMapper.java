@@ -92,6 +92,6 @@ class SpringWebClientEmbeddedMapper implements HttpClient {
 
     @Override
     public void close() {
-        // this implementation do nothing
+        // this implementation does nothing
     }
 }

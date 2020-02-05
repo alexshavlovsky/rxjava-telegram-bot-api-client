@@ -36,7 +36,8 @@ final class ApacheHttpAsyncClient extends AbstractHttpClientApiAdapter {
 
     @Override
     Single<byte[]> getRequest(String token, String method, String query) {
-        String uri = apiUri(token, method + "?" + query);
+        if (query != null && !query.isEmpty()) method += "?" + query;
+        String uri = apiUri(token, method);
         HttpAsyncRequestProducer producer = HttpAsyncMethods.createGet(uri);
         return createRequest(producer);
     }

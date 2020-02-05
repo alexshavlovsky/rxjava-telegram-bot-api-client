@@ -1,6 +1,5 @@
 package telegrambot;
 
-
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
@@ -64,7 +63,8 @@ public class TelegramBot implements AutoCloseable {
         if (token == null) {
             logger.info("Try to load a token from the file system...");
             token = tokenStorageService.getMostRecentToken();
-            if (token == null) throw BotException.NO_SAVED_TOKEN;
+            if (token == null) throw new BotException(
+                    "Can't find any saved token.\nPlease provide an API token via command line argument.\nYou can get one from BotFather.");
         }
         logger.info("Validate the token against Telegram API...");
         http = HttpClientFactory.newInstance(clientType);
@@ -141,14 +141,6 @@ public class TelegramBot implements AutoCloseable {
 
     public Observable<String> currentChatObservable() {
         return currentChatObservable.map(MessageFormatter::formatChat);
-    }
-
-    public String getToken() {
-        return token;
-    }
-
-    public String getBotName() {
-        return MessageFormatter.formatName(botUser);
     }
 
     @Override
