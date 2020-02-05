@@ -1,7 +1,7 @@
+import io.reactivex.Observable;
 import telegrambot.BotException;
 import telegrambot.TelegramBot;
-
-import java.util.Scanner;
+import telegrambot.ui.KeyboardObservableFactory;
 
 public class App {
 
@@ -9,13 +9,15 @@ public class App {
         System.out.println(s);
     }
 
+    private static TelegramBot telegramBot;
+
     public static void main(String[] args) throws Exception {
 
         // parse command line arguments
         CliParser.CliOptions cliOptions = CliParser.parseArguments(args);
 
         // create a bot instance
-        TelegramBot telegramBot = null;
+
         try {
             telegramBot = new TelegramBot(cliOptions.token, cliOptions.httpClientType);
         } catch (BotException e) {
@@ -29,18 +31,14 @@ public class App {
         // stream current chat events to console
         telegramBot.currentChatObservable().subscribe(s -> print("Current chat is set to: " + s));
 
-        print("Type :q to exit");
+        // create a system input scanner in a new thread
+        Observable<String> keyboard = KeyboardObservableFactory.getInstance();
 
-        // main loop
-        Scanner scanner = new Scanner(System.in);
-        while (true) {
-            String line = scanner.nextLine();
-            if (line.trim().isEmpty()) continue;
-            if (":q".equals(line)) break;
-            telegramBot.sendMessage(line);
-        }
-
-        print("Close session...");
-        telegramBot.close();
+        //subscribe to user input
+        keyboard.subscribe(
+                telegramBot::sendMessage,
+                e -> print("System input scanner error: " + e.toString()),
+                () -> telegramBot.close()
+        );
     }
 }
