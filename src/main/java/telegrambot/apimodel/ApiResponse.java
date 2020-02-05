@@ -14,6 +14,6 @@ public class ApiResponse<T> {
     T result;
 
     public String getErrorDescription() {
-        return String.format("Telegram API error code %d: %s", error_code, description);
+        return String.format("Telegram API responded with an error code %d: %s", error_code, description);
     }
 }

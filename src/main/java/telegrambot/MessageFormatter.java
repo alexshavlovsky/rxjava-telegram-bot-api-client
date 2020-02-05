@@ -54,12 +54,20 @@ class MessageFormatter {
         return new DateTime(date).toString("HH:mm:ss");
     }
 
+    private static String messageToText(Message message) {
+        return message.getText() != null ?
+                message.getText() :
+                message.getCaption() != null ?
+                        message.getCaption() :
+                        "NOT IMPLEMENTED: the message can't be represented as text";
+    }
+
     static String formatMessage(Message message, BotService botService, User botUser) {
         String name = formatName(message.getFrom());
         int nameWidth = updateAndGetMaxNameWidth(name, botService);
         String dir = formatDirection(message.getFrom(), botUser);
         String time = formatTime(message.getDate());
-        return joinNotNullNotBlank(time, appendSpace(name, nameWidth), dir, message.getText());
+        return joinNotNullNotBlank(time, appendSpace(name, nameWidth), dir, messageToText(message));
     }
 
     private static String formatParametrizedLogMessage(String f, Object... args) {

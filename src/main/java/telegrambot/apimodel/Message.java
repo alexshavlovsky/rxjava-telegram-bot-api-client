@@ -21,4 +21,5 @@ public class Message implements Serializable {
     Date date;
     Chat chat;
     String text;
+    String caption;
 }
