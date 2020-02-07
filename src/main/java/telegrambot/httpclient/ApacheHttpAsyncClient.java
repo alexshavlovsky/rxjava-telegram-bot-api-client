@@ -21,10 +21,6 @@ final class ApacheHttpAsyncClient extends AbstractHttpClientApiAdapter {
         httpClient.start();
     }
 
-    private static String apiUri(String token, String method) {
-        return String.format("https://api.telegram.org/bot%s/%s", token, method);
-    }
-
     private Single<byte[]> createRequest(HttpAsyncRequestProducer producer) {
         return RxJavaInterop.toV2Observable(
                 ObservableHttp
@@ -36,8 +32,7 @@ final class ApacheHttpAsyncClient extends AbstractHttpClientApiAdapter {
 
     @Override
     Single<byte[]> getRequest(String token, String method, String query) {
-        if (query != null && !query.isEmpty()) method += "?" + query;
-        String uri = apiUri(token, method);
+        String uri = apiUri(token, method, query);
         HttpAsyncRequestProducer producer = HttpAsyncMethods.createGet(uri);
         return createRequest(producer);
     }

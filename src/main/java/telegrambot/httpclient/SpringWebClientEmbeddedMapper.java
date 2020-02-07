@@ -16,9 +16,9 @@ import javax.management.modelmbean.InvalidTargetObjectTypeException;
 import java.util.HashMap;
 import java.util.Map;
 
-class SpringWebClientEmbeddedMapper implements HttpClient {
+class SpringWebClientEmbeddedMapper extends HttpClient {
 
-    private static final Map<Class, ParameterizedTypeReference> TYPE_REFERENCES = new HashMap<>(2);
+    private static final Map<Class, ParameterizedTypeReference> TYPE_REFERENCES = new HashMap<>(3);
 
     static {
         TYPE_REFERENCES.put(User.class, new ParameterizedTypeReference<ApiResponse<User>>() {
@@ -38,7 +38,7 @@ class SpringWebClientEmbeddedMapper implements HttpClient {
     private final WebClient httpClient;
 
     SpringWebClientEmbeddedMapper() {
-        httpClient = WebClient.builder().baseUrl("https://api.telegram.org").build();
+        httpClient = WebClient.builder().baseUrl(API_BASE_URL).build();
     }
 
     private WebClient.RequestBodySpec prepareRequestBody(HttpMethod httpMethod, String token, String method, String query) {

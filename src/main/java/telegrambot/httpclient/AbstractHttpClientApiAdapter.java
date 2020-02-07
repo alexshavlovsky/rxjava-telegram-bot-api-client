@@ -7,7 +7,7 @@ import telegrambot.apimodel.ApiResponse;
 
 import java.io.IOException;
 
-abstract class AbstractHttpClientApiAdapter implements HttpClient {
+abstract class AbstractHttpClientApiAdapter extends HttpClient {
 
     private static <T> Single<T> fromByteArray(byte[] rawResponse, Class<T> clazz) {
         ObjectMapper objectMapper = ObjectMapperFactory.getInstance();
@@ -19,6 +19,16 @@ abstract class AbstractHttpClientApiAdapter implements HttpClient {
         } catch (IOException e) {
             return Single.error(e);
         }
+    }
+
+    static String apiUri(String token, String method) {
+        return String.format("%s/bot%s/%s", API_BASE_URL, token, method);
+    }
+
+    static String apiUri(String token, String method, String query) {
+        return (query == null || query.trim().isEmpty()) ?
+                apiUri(token, method) :
+                apiUri(token, method + "?" + query);
     }
 
     abstract Single<byte[]> getRequest(String token, String method, String query);
@@ -36,4 +46,5 @@ abstract class AbstractHttpClientApiAdapter implements HttpClient {
         return postRequest(token, method, json)
                 .flatMap(byteArray -> AbstractHttpClientApiAdapter.fromByteArray(byteArray, clazz));
     }
+
 }

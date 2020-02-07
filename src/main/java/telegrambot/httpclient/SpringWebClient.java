@@ -11,7 +11,7 @@ final class SpringWebClient extends AbstractHttpClientApiAdapter {
     private final WebClient httpClient;
 
     SpringWebClient() {
-        httpClient = WebClient.builder().baseUrl("https://api.telegram.org").build();
+        httpClient = WebClient.builder().baseUrl(API_BASE_URL).build();
     }
 
     private WebClient.RequestBodySpec createRequest(HttpMethod httpMethod, String token, String method, String query) {

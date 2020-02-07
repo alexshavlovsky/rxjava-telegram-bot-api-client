@@ -15,10 +15,6 @@ final public class NettyAsyncHttpClient extends AbstractHttpClientApiAdapter {
         httpClient = Dsl.asyncHttpClient();
     }
 
-    private static String apiUri(String token, String method) {
-        return String.format("https://api.telegram.org/bot%s/%s", token, method);
-    }
-
     private Single<byte[]> toSingle(Request request) {
         ReplaySubject<byte[]> bodyParts = ReplaySubject.create();
         httpClient.executeRequest(request, new RxAsyncHandler(bodyParts));
@@ -28,9 +24,8 @@ final public class NettyAsyncHttpClient extends AbstractHttpClientApiAdapter {
 
     @Override
     Single<byte[]> getRequest(String token, String method, String query) {
-        if (query != null && !query.isEmpty()) method += "?" + query;
         return toSingle(Dsl
-                .get(apiUri(token, method))
+                .get(apiUri(token, method, query))
                 .build());
     }
 

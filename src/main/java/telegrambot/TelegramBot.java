@@ -89,13 +89,12 @@ public class TelegramBot implements AutoCloseable {
     }
 
     private Single<User> validateTokenAgainstApi(String token) {
-        return http.apiGetRequest(token, "getMe", "", User.class)
+        return http.getMe(token)
                 .doOnError(e -> logger.error("Validate token against API: {}", e.getMessage()));
     }
 
-    private Single<Message> sendMessageAckObservable(Chat chat, String text) {
-        String json = String.format("{\"chat_id\":%d,\"text\":\"%s\"}", chat.getId(), text);
-        return http.apiPostRequest(token, "sendMessage", json, Message.class)
+    private Single<Message> sendMessageAckObservable(Chat chat, String textMessage) {
+        return http.sendMessage(token, chat, textMessage)
                 .doOnSuccess(botService::saveMessage)
                 .onErrorResumeNext(e -> {
                     logger.error("Send message error: {}", e.getMessage());
@@ -120,7 +119,7 @@ public class TelegramBot implements AutoCloseable {
     }
 
     private Observable<Message> incomingMessageObservable() {
-        return Single.defer(() -> http.apiGetRequest(token, "getUpdates", createGetUpdatesQuery(), Update[].class))
+        return Single.defer(() -> http.getUpdates(token, createGetUpdatesQuery()))
                 .flatMapObservable(this::handleUpdates)
                 .doOnError(e -> logger.error("API updates polling: {}", e.getMessage()))
                 .repeatWhen(handler -> handler.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
