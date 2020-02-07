@@ -58,7 +58,7 @@ public class TelegramBot implements AutoCloseable {
                     this::sendMessageAckObservable)
             .flatMapSingle(o -> o);
 
-    public TelegramBot(String token, HttpClientType clientType) throws Exception {
+    public TelegramBot(String token, HttpClientType clientType) throws BotException {
         TokenStorageService tokenStorageService = new TokenStorageService();
         if (token == null) {
             logger.info("Try to load a token from the file system...");
@@ -71,7 +71,11 @@ public class TelegramBot implements AutoCloseable {
         try {
             botUser = validateTokenAgainstApi(token).blockingGet();
         } catch (Exception e) {
-            http.close();
+            try {
+                http.close();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
             throw new BotException("Unable to validate token against Telegram API: " + e.getMessage(), e);
         }
         this.token = token;

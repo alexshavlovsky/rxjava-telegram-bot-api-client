@@ -1,4 +1,5 @@
 import io.reactivex.Observable;
+import org.apache.commons.cli.ParseException;
 import telegrambot.BotException;
 import telegrambot.TelegramBot;
 import telegrambot.ui.KeyboardObservableFactory;
@@ -11,18 +12,21 @@ public class App {
 
     private static TelegramBot telegramBot;
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
 
         // parse command line arguments
-        CliParser.CliOptions cliOptions = CliParser.parseArguments(args);
+        CliParser.CliOptions cliOptions = null;
+        try {
+            cliOptions = CliParser.parseArguments(args);
+        } catch (ParseException e) {
+            CliParser.printHelpAndExit(1,"Unable parse program arguments: " + e.getMessage());
+        }
 
         // create a bot instance
-
         try {
             telegramBot = new TelegramBot(cliOptions.token, cliOptions.httpClientType);
         } catch (BotException e) {
-            print("Unable to initialize: " + e.getMessage());
-            CliParser.printHelpAndExit(1);
+            CliParser.printHelpAndExit(1,"Unable to initialize: " + e.getMessage());
         }
 
         // stream messages from API to console
