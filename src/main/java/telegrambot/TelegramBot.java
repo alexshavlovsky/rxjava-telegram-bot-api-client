@@ -11,9 +11,9 @@ import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.Update;
 import telegrambot.apimodel.User;
-import telegrambot.httpclient.HttpClient;
-import telegrambot.httpclient.HttpClientFactory;
-import telegrambot.httpclient.HttpClientType;
+import telegrambot.httpclient.BotApiHttpClient;
+import telegrambot.httpclient.BotApiHttpClientFactory;
+import telegrambot.httpclient.BotApiHttpClientType;
 import telegrambot.io.BotService;
 import telegrambot.io.TokenStorageService;
 import telegrambot.io.UpdateOffsetHolder;
@@ -35,7 +35,7 @@ public class TelegramBot implements AutoCloseable {
     private final String token;
     private final User botUser;
 
-    private final HttpClient http;
+    private final BotApiHttpClient http;
     private final UpdateOffsetHolder updateOffset = new UpdateOffsetHolder();
 
     private final ReplaySubject<Chat> currentChatSubject = ReplaySubject.create();
@@ -58,7 +58,7 @@ public class TelegramBot implements AutoCloseable {
                     this::sendMessageAckObservable)
             .flatMapSingle(o -> o);
 
-    public TelegramBot(String token, HttpClientType clientType) throws BotException {
+    public TelegramBot(String token, BotApiHttpClientType clientType) throws BotException {
         TokenStorageService tokenStorageService = new TokenStorageService();
         if (token == null) {
             logger.info("Try to load a token from the file system...");
@@ -67,7 +67,7 @@ public class TelegramBot implements AutoCloseable {
                     "Can't find any saved token.\nPlease provide an API token via command line argument.\nYou can get one from BotFather.");
         }
         logger.info("Validate the token against Telegram API...");
-        http = HttpClientFactory.newInstance(clientType);
+        http = BotApiHttpClientFactory.newInstance(clientType);
         try {
             botUser = validateTokenAgainstApi(token).blockingGet();
         } catch (Exception e) {

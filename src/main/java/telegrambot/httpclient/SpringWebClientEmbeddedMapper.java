@@ -16,7 +16,7 @@ import javax.management.modelmbean.InvalidTargetObjectTypeException;
 import java.util.HashMap;
 import java.util.Map;
 
-class SpringWebClientEmbeddedMapper extends HttpClient {
+final class SpringWebClientEmbeddedMapper extends BotApiHttpClient {
 
     private static final Map<Class, ParameterizedTypeReference> TYPE_REFERENCES = new HashMap<>(3);
 
@@ -76,17 +76,17 @@ class SpringWebClientEmbeddedMapper extends HttpClient {
     }
 
     private static <T> Mono<T> catchAndPropagateApiError(ApiResponse<T> apiResponse) {
-        if (!apiResponse.getOk()) return Mono.error(() -> new ApiException(apiResponse));
-        return Mono.just(apiResponse.getResult());
+        if (apiResponse.getOk()) return Mono.just(apiResponse.getResult());
+        else return Mono.error(() -> new ApiException(apiResponse));
     }
 
     @Override
-    public <T> Single<T> apiGetRequest(String token, String method, String query, Class<T> clazz) {
+    public <T> Single<T> genericGetRequest(String token, String method, String query, Class<T> clazz) {
         return RxJava2Adapter.monoToSingle(apiGetRequestMono(token, method, query, clazz));
     }
 
     @Override
-    public <T> Single<T> apiPostRequest(String token, String method, String json, Class<T> clazz) {
+    public <T> Single<T> genericPostRequest(String token, String method, String json, Class<T> clazz) {
         return RxJava2Adapter.monoToSingle(apiPostRequestMono(token, method, json, clazz));
     }
 

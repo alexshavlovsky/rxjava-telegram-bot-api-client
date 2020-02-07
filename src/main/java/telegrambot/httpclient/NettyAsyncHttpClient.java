@@ -7,7 +7,7 @@ import org.asynchttpclient.*;
 
 import java.io.ByteArrayOutputStream;
 
-final public class NettyAsyncHttpClient extends AbstractHttpClientApiAdapter {
+final public class NettyAsyncHttpClient extends BotApiHttpClientAdapter {
 
     private final AsyncHttpClient httpClient;
 
@@ -23,14 +23,14 @@ final public class NettyAsyncHttpClient extends AbstractHttpClientApiAdapter {
     }
 
     @Override
-    Single<byte[]> getRequest(String token, String method, String query) {
+    public Single<byte[]> rawBodyGetRequest(String token, String method, String query) {
         return toSingle(Dsl
                 .get(apiUri(token, method, query))
                 .build());
     }
 
     @Override
-    Single<byte[]> postRequest(String token, String method, String json) {
+    public Single<byte[]> rawBodyPostRequest(String token, String method, String json) {
         return toSingle(Dsl
                 .post(apiUri(token, method))
                 .setBody(json)

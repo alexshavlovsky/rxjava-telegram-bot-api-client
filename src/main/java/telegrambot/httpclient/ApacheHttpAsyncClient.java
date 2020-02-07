@@ -13,7 +13,7 @@ import rx.apache.http.ObservableHttpResponse;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
-final class ApacheHttpAsyncClient extends AbstractHttpClientApiAdapter {
+final class ApacheHttpAsyncClient extends BotApiHttpClientAdapter {
     private final CloseableHttpAsyncClient httpClient;
 
     ApacheHttpAsyncClient() {
@@ -31,14 +31,14 @@ final class ApacheHttpAsyncClient extends AbstractHttpClientApiAdapter {
     }
 
     @Override
-    Single<byte[]> getRequest(String token, String method, String query) {
+    public Single<byte[]> rawBodyGetRequest(String token, String method, String query) {
         String uri = apiUri(token, method, query);
         HttpAsyncRequestProducer producer = HttpAsyncMethods.createGet(uri);
         return createRequest(producer);
     }
 
     @Override
-    Single<byte[]> postRequest(String token, String method, String json) {
+    public Single<byte[]> rawBodyPostRequest(String token, String method, String json) {
         try {
             String uri = apiUri(token, method);
             HttpAsyncRequestProducer producer = HttpAsyncMethods.createPost(uri, json, ContentType.APPLICATION_JSON);

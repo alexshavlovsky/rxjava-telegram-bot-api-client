@@ -7,15 +7,15 @@ import telegrambot.apimodel.ApiResponse;
 
 import java.io.IOException;
 
-abstract class AbstractHttpClientApiAdapter extends HttpClient {
+abstract class BotApiHttpClientAdapter extends BotApiHttpClient implements RawBodyHttpRequests {
 
-    private static <T> Single<T> fromByteArray(byte[] rawResponse, Class<T> clazz) {
+    private static <T> Single<T> rawBodyToApiType(byte[] rawBody, Class<T> clazz) {
         ObjectMapper objectMapper = ObjectMapperFactory.getInstance();
         JavaType type = objectMapper.getTypeFactory().constructParametricType(ApiResponse.class, clazz);
         try {
-            ApiResponse<T> apiResponse = objectMapper.readValue(rawResponse, type);
+            ApiResponse<T> apiResponse = objectMapper.readValue(rawBody, type);
             if (apiResponse.getOk()) return Single.just(apiResponse.getResult());
-            return Single.error(() -> new ApiException(apiResponse));
+            else return Single.error(() -> new ApiException(apiResponse));
         } catch (IOException e) {
             return Single.error(e);
         }
@@ -31,20 +31,16 @@ abstract class AbstractHttpClientApiAdapter extends HttpClient {
                 apiUri(token, method + "?" + query);
     }
 
-    abstract Single<byte[]> getRequest(String token, String method, String query);
-
-    abstract Single<byte[]> postRequest(String token, String method, String json);
-
     @Override
-    final public <T> Single<T> apiGetRequest(String token, String method, String query, Class<T> clazz) {
-        return getRequest(token, method, query)
-                .flatMap(byteArray -> AbstractHttpClientApiAdapter.fromByteArray(byteArray, clazz));
+    final public <T> Single<T> genericGetRequest(String token, String method, String query, Class<T> clazz) {
+        return rawBodyGetRequest(token, method, query)
+                .flatMap(rawBody -> BotApiHttpClientAdapter.rawBodyToApiType(rawBody, clazz));
     }
 
     @Override
-    final public <T> Single<T> apiPostRequest(String token, String method, String json, Class<T> clazz) {
-        return postRequest(token, method, json)
-                .flatMap(byteArray -> AbstractHttpClientApiAdapter.fromByteArray(byteArray, clazz));
+    final public <T> Single<T> genericPostRequest(String token, String method, String json, Class<T> clazz) {
+        return rawBodyPostRequest(token, method, json)
+                .flatMap(rawBody -> BotApiHttpClientAdapter.rawBodyToApiType(rawBody, clazz));
     }
 
 }

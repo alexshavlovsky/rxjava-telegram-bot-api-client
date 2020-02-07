@@ -3,27 +3,27 @@ package telegrambot.httpclient;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-public enum HttpClientType {
+public enum BotApiHttpClientType {
     NETTY_ASYNC_HTTP_CLIENT("ahc", "Netty AsyncHttpClient"),
     APACHE_HTTP_ASYNC_CLIENT("apache", "Netflix ApacheHttpClient"),
     SPRING_REACTOR_WEB_CLIENT("spring", "Spring ProjectReactor Netty WebClient");
 
     private String key;
     private String description;
-    public static HttpClientType defaultClient = HttpClientType.NETTY_ASYNC_HTTP_CLIENT;
+    public static BotApiHttpClientType defaultClient = BotApiHttpClientType.NETTY_ASYNC_HTTP_CLIENT;
 
-    HttpClientType(String key, String description) {
+    BotApiHttpClientType(String key, String description) {
         this.key = key;
         this.description = description;
     }
 
-    static public HttpClientType getByKey(String clientKey) {
-        for (HttpClientType val : HttpClientType.values()) if (val.key.equals(clientKey)) return val;
+    static public BotApiHttpClientType getByKey(String clientKey) {
+        for (BotApiHttpClientType val : BotApiHttpClientType.values()) if (val.key.equals(clientKey)) return val;
         return null;
     }
 
     static public String joinToString() {
-        return Arrays.stream(HttpClientType.values()).map(HttpClientType::toString).collect(Collectors.joining("\n"));
+        return Arrays.stream(BotApiHttpClientType.values()).map(BotApiHttpClientType::toString).collect(Collectors.joining("\n"));
     }
 
     @Override

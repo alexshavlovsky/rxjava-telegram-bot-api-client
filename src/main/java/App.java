@@ -24,7 +24,7 @@ public class App {
 
         // create a bot instance
         try {
-            telegramBot = new TelegramBot(cliOptions.token, cliOptions.httpClientType);
+            telegramBot = new TelegramBot(cliOptions.token, cliOptions.botApiHttpClientType);
         } catch (BotException e) {
             CliParser.printHelpAndExit(1, "Unable to initialize: " + e.getMessage());
         }

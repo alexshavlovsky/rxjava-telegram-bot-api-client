@@ -1,5 +1,5 @@
 import org.apache.commons.cli.*;
-import telegrambot.httpclient.HttpClientType;
+import telegrambot.httpclient.BotApiHttpClientType;
 
 class CliParser {
 
@@ -14,13 +14,13 @@ class CliParser {
                 .addOption("h", false, "print this message")
                 .addOption("t", true, "telegram Bot API token\n(default - most recently used token)")
                 .addOption("c", true, String.format("http client type\n%s\n(default - %s)",
-                        HttpClientType.joinToString(),
-                        HttpClientType.defaultClient.getDescription()));
+                        BotApiHttpClientType.joinToString(),
+                        BotApiHttpClientType.defaultClient.getDescription()));
     }
 
     static class CliOptions {
         String token; // null = try to load a token from the file system
-        HttpClientType httpClientType = HttpClientType.defaultClient;
+        BotApiHttpClientType botApiHttpClientType = BotApiHttpClientType.defaultClient;
     }
 
     static void printHelpAndExit(int status, String... headerLines) {
@@ -39,9 +39,9 @@ class CliParser {
         cliOptions.token = line.getOptionValue("t");
         String clientKey = line.getOptionValue("c");
         if (clientKey != null) {
-            HttpClientType requestedClientType = HttpClientType.getByKey(clientKey);
+            BotApiHttpClientType requestedClientType = BotApiHttpClientType.getByKey(clientKey);
             if (requestedClientType == null) throw new UnrecognizedArgumentException(clientKey, "c");
-            else cliOptions.httpClientType = requestedClientType;
+            else cliOptions.botApiHttpClientType = requestedClientType;
         }
         return cliOptions;
     }

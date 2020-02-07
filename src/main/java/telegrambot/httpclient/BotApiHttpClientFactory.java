@@ -1,8 +1,8 @@
 package telegrambot.httpclient;
 
-public class HttpClientFactory {
-    public static HttpClient newInstance(HttpClientType httpClientType) {
-        switch (httpClientType) {
+public class BotApiHttpClientFactory {
+    public static BotApiHttpClient newInstance(BotApiHttpClientType botApiHttpClientType) {
+        switch (botApiHttpClientType) {
             case SPRING_REACTOR_WEB_CLIENT:
                 return new SpringWebClientEmbeddedMapper();
             case APACHE_HTTP_ASYNC_CLIENT:

@@ -6,7 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.adapter.rxjava.RxJava2Adapter;
 
-final class SpringWebClient extends AbstractHttpClientApiAdapter {
+final class SpringWebClient extends BotApiHttpClientAdapter {
 
     private final WebClient httpClient;
 
@@ -25,7 +25,7 @@ final class SpringWebClient extends AbstractHttpClientApiAdapter {
     }
 
     @Override
-    Single<byte[]> getRequest(String token, String method, String query) {
+    public Single<byte[]> rawBodyGetRequest(String token, String method, String query) {
         return RxJava2Adapter.monoToSingle(
                 createRequest(HttpMethod.GET, token, method, query)
                         .retrieve()
@@ -34,7 +34,7 @@ final class SpringWebClient extends AbstractHttpClientApiAdapter {
     }
 
     @Override
-    Single<byte[]> postRequest(String token, String method, String json) {
+    public Single<byte[]> rawBodyPostRequest(String token, String method, String json) {
         return RxJava2Adapter.monoToSingle(
                 createRequest(HttpMethod.POST, token, method, "")
                         .contentType(MediaType.APPLICATION_JSON)
