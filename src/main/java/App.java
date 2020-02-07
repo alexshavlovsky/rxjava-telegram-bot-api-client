@@ -19,14 +19,14 @@ public class App {
         try {
             cliOptions = CliParser.parseArguments(args);
         } catch (ParseException e) {
-            CliParser.printHelpAndExit(1,"Unable parse program arguments: " + e.getMessage());
+            CliParser.printHelpAndExit(1, "Unable parse program arguments: " + e.getMessage());
         }
 
         // create a bot instance
         try {
             telegramBot = new TelegramBot(cliOptions.token, cliOptions.httpClientType);
         } catch (BotException e) {
-            CliParser.printHelpAndExit(1,"Unable to initialize: " + e.getMessage());
+            CliParser.printHelpAndExit(1, "Unable to initialize: " + e.getMessage());
         }
 
         // stream messages from API to console

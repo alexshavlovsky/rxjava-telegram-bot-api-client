@@ -2,11 +2,11 @@
 
 Just another command line java Telegram Bot API client. Main features:
 - built on top of Java 8 and RxJava2 Reactive Extensions
-- includes two versions of HTTP client: Apache HTTPAsyncClient based and Spring Project Reactor WebClient based
+- includes several types of HTTP clients
 - implemented HTTP methods: POST and GET
 - implemented Telegram Bot API methods: "getMe", "getUpdates", "sendMessage"
 - only text messages are supported
-- API tokens and a message history are saved to file system
+- API tokens and a message history are saved to the file system
 
 ## Build and run instructions
 
@@ -18,20 +18,24 @@ cd target
 
 Usage:
 java -jar telebot.jar -t TELEGRAM_BOT_API_TOKEN
- -c <arg>   http client to use
-            <apache> - Apache HttpAsyncClient (default)
-            <spring> - Spring Project Reactor WebClient
+ -c <arg>   http client type
+            <ahc> - Netty AsyncHttpClient
+            <apache> - Netflix ApacheHttpClient
+            <spring> - Spring ProjectReactor Netty WebClient
+            (default - Netty AsyncHttpClient)
  -h         print this message
- -t <arg>   telegram Bot API token to use
+ -t <arg>   telegram Bot API token
             (default - most recently used token)
 ```
 
 ## Technology Stack
 
-Component                     | Technology
----                           | ---
-RxJava Http clients           | Apache Netflix HttpAsyncClient
-Project Reactor Http client   | Spring Project Reactor WebClient
-RxJava types Adapter          | [RxJava to RxJava2](https://github.com/akarnokd/RxJavaInterop)
-Project Reactor types Adapter | [Project Reactor to RxJava2](https://github.com/reactor/reactor-addons)
-Command line interface        | Apache Commons CLI
+Component                      | Technology
+---                            | ---
+Java Reactive extensions       | RxJava v2.2
+RxJava Http client             | Netflix HttpAsyncClient
+Project Reactor Http client    | Spring ProjectReactor Netty WebClient
+Netty Async HTTP client        | [AsyncHttpClient](https://github.com/AsyncHttpClient/async-http-client)
+RxJava types Adapter           | [RxJava to RxJava2](https://github.com/akarnokd/RxJavaInterop)
+Project Reactor types Adapter  | [Project Reactor to RxJava2](https://github.com/reactor/reactor-addons)
+Command line interface         | Apache Commons CLI

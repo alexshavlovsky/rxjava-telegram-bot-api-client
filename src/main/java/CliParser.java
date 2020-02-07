@@ -13,12 +13,14 @@ class CliParser {
         OPTIONS
                 .addOption("h", false, "print this message")
                 .addOption("t", true, "telegram Bot API token\n(default - most recently used token)")
-                .addOption("c", true, "http client type\n<ahc> - AsyncHttpClient\n<apache> - Apache HttpAsyncClient\n<spring> - Spring Project Reactor WebClient\n(default - AsyncHttpClient)");
+                .addOption("c", true, String.format("http client type\n%s\n(default - %s)",
+                        HttpClientType.joinToString(),
+                        HttpClientType.defaultClient.getDescription()));
     }
 
     static class CliOptions {
         String token; // null = try to load a token from the file system
-        HttpClientType httpClientType = HttpClientType.ASYNC_HTTP_CLIENT; // set a default client
+        HttpClientType httpClientType = HttpClientType.defaultClient;
     }
 
     static void printHelpAndExit(int status, String... headerLines) {
@@ -36,10 +38,17 @@ class CliParser {
         if (line.hasOption("h")) printHelpAndExit(0);
         cliOptions.token = line.getOptionValue("t");
         String clientKey = line.getOptionValue("c");
-        if ("spring".equals(clientKey)) cliOptions.httpClientType = HttpClientType.SPRING_REACTOR_WEB_CLIENT;
-        if ("apache".equals(clientKey)) cliOptions.httpClientType = HttpClientType.APACHE_HTTP_ASYNC_CLIENT;
-        if ("ahc".equals(clientKey)) cliOptions.httpClientType = HttpClientType.ASYNC_HTTP_CLIENT;
+        if (clientKey != null) {
+            HttpClientType requestedClientType = HttpClientType.getByKey(clientKey);
+            if (requestedClientType == null) throw new UnrecognizedArgumentException(clientKey, "c");
+            else cliOptions.httpClientType = requestedClientType;
+        }
         return cliOptions;
     }
 
+    private static class UnrecognizedArgumentException extends ParseException {
+        UnrecognizedArgumentException(String argument, String option) {
+            super(String.format("Unrecognized argument '%s' for option '%s'", argument, option));
+        }
+    }
 }

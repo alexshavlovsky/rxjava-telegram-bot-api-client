@@ -7,11 +7,11 @@ import org.asynchttpclient.*;
 
 import java.io.ByteArrayOutputStream;
 
-final public class OrgAsyncHttpClient extends AbstractHttpClientApiAdapter {
+final public class NettyAsyncHttpClient extends AbstractHttpClientApiAdapter {
 
     private final AsyncHttpClient httpClient;
 
-    OrgAsyncHttpClient() {
+    NettyAsyncHttpClient() {
         httpClient = Dsl.asyncHttpClient();
     }
 

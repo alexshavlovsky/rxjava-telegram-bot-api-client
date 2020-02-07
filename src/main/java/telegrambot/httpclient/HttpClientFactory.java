@@ -7,9 +7,9 @@ public class HttpClientFactory {
                 return new SpringWebClientEmbeddedMapper();
             case APACHE_HTTP_ASYNC_CLIENT:
                 return new ApacheHttpAsyncClient();
-            case ASYNC_HTTP_CLIENT:
+            case NETTY_ASYNC_HTTP_CLIENT:
             default:
-                return new OrgAsyncHttpClient();
+                return new NettyAsyncHttpClient();
         }
     }
 }
