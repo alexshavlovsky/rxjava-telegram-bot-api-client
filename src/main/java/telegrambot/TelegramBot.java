@@ -2,7 +2,7 @@ package telegrambot;
 
 import io.reactivex.Completable;
 import io.reactivex.Observable;
-import io.reactivex.Single;
+import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.PublishSubject;
 import io.reactivex.subjects.ReplaySubject;
 import org.slf4j.Logger;
@@ -10,16 +10,14 @@ import org.slf4j.LoggerFactory;
 import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.User;
-import telegrambot.pollingbot.LongPollingBot;
-import telegrambot.pollingbot.PollingBot;
 import telegrambot.httpclient.BotApiHttpClientFactory;
 import telegrambot.httpclient.BotApiHttpClientType;
 import telegrambot.io.BotService;
 import telegrambot.io.TokenStorageService;
+import telegrambot.pollingclient.PollingClient;
+import telegrambot.pollingclient.ShortPollingClient;
 
 import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class TelegramBot implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(TelegramBot.class);
@@ -27,27 +25,12 @@ public class TelegramBot implements AutoCloseable {
     private final BotService botService;
     private final User botUser;
 
-    private final PollingBot pollingBot;
+    private final PollingClient pollingClient;
 
     private final ReplaySubject<Chat> currentChatSubject = ReplaySubject.create();
     private final PublishSubject<String> userTextInputSubject = PublishSubject.create();
     private final Observable<Chat> currentChatObservable = currentChatSubject.distinctUntilChanged();
-
-    private final Completable notifyChatNotSet = userTextInputSubject
-            .takeUntil(currentChatObservable)
-            .doOnNext(m -> logger.info("A current chat is not assigned. Please send a message to this bot first!"))
-            .ignoreElements();
-
-    private final Observable<String> outgoingUserText = userTextInputSubject
-            .skipUntil(currentChatObservable)
-            .mergeWith(notifyChatNotSet);
-
-    private final Observable<Message> outgoingMessageAckObservable = Observable
-            .combineLatest(
-                    currentChatObservable,
-                    outgoingUserText,
-                    this::sendMessageAckObservable)
-            .flatMapSingle(o -> o);
+    private final Disposable outgoingMessageBridge;
 
     public TelegramBot(String token, BotApiHttpClientType clientType) throws BotException {
         TokenStorageService tokenStorageService = new TokenStorageService();
@@ -58,12 +41,12 @@ public class TelegramBot implements AutoCloseable {
                     "Can't find any saved token.\nPlease provide an API token via command line argument.\nYou can get one from BotFather.");
         }
         logger.info("Validate the token against Telegram API...");
-        pollingBot = new LongPollingBot(token, BotApiHttpClientFactory.newInstance(clientType));
+        pollingClient = new ShortPollingClient(token, BotApiHttpClientFactory.newInstance(clientType));
         try {
-            botUser = pollingBot.getMe().blockingGet();
+            botUser = pollingClient.getMe().blockingGet();
         } catch (Exception e) {
             try {
-                pollingBot.close();
+                pollingClient.close();
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
@@ -76,15 +59,18 @@ public class TelegramBot implements AutoCloseable {
         // publish the latest chat from bot service
         botService.getMessages().stream().max(Comparator.comparing(Message::getDate))
                 .ifPresent(message -> currentChatSubject.onNext(message.getChat()));
-    }
-
-    private Single<Message> sendMessageAckObservable(Chat chat, String textMessage) {
-        return pollingBot.sendMessage(chat, textMessage)
-                .doOnSuccess(botService::saveMessage)
-                .onErrorResumeNext(e -> {
-                    logger.error("Send message error: {}", e.getMessage());
-                    return Single.never();
-                });
+        // bridge user text input to api
+        Completable notifyChatNotSet = userTextInputSubject
+                .takeUntil(currentChatObservable)
+                .doOnNext(m -> logger.info("A current chat is not assigned. Please send a message to this bot first!"))
+                .ignoreElements();
+        Observable<String> outgoingUserText = userTextInputSubject
+                .skipUntil(currentChatObservable)
+                .mergeWith(notifyChatNotSet);
+        outgoingMessageBridge = Observable.combineLatest(
+                currentChatObservable,
+                outgoingUserText,
+                pollingClient::sendMessage).flatMapCompletable(c -> c).subscribe();
     }
 
     private void handleMessage(Message message) {
@@ -95,18 +81,15 @@ public class TelegramBot implements AutoCloseable {
     }
 
     private Observable<Message> incomingMessageObservable() {
-        return pollingBot.getMessages().doOnNext(this::handleMessage);
+        return pollingClient.pollMessages().doOnNext(this::handleMessage);
     }
 
     private Observable<Message> messageHistoryObservable() {
-        List<Message> messages = botService
-                .getMessages().stream().sorted(Comparator.comparing(Message::getDate)).collect(Collectors.toList());
-        return Observable.fromIterable(messages);
+        return Observable.fromIterable(botService.getMessages()).sorted(Comparator.comparing(Message::getDate));
     }
 
     public Observable<String> messageObservable() {
-        return messageHistoryObservable()
-                .concatWith(incomingMessageObservable().mergeWith(outgoingMessageAckObservable))
+        return messageHistoryObservable().concatWith(incomingMessageObservable())
                 .map(m -> MessageFormatter.formatMessage(m, botService, botUser));
     }
 
@@ -120,6 +103,7 @@ public class TelegramBot implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        pollingBot.close();
+        outgoingMessageBridge.dispose();
+        pollingClient.close();
     }
 }

@@ -1,4 +1,4 @@
-package telegrambot.pollingbot;
+package telegrambot.pollingclient;
 
 import telegrambot.apimodel.Update;
 

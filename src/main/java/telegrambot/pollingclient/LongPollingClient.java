@@ -1,4 +1,4 @@
-package telegrambot.pollingbot;
+package telegrambot.pollingclient;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
@@ -8,18 +8,18 @@ import telegrambot.httpclient.BotApiHttpClient;
 
 import java.util.concurrent.TimeUnit;
 
-public class LongPollingBot extends ShortPollingBot {
+public class LongPollingClient extends ShortPollingClient {
     private final static int POLLING_TIMEOUT = 60;
-    private final static int POLLING_REPEAT_DELAY = 5;
+    private final static int POLLING_REPEAT_DELAY = 1;
     private final static int POLLING_RETRY_DELAY = 10;
 
     private final UpdateOffsetHolder updateOffset = new UpdateOffsetHolder();
 
-    public LongPollingBot(String token, BotApiHttpClient httpClient) {
+    public LongPollingClient(String token, BotApiHttpClient httpClient) {
         super(token, httpClient);
     }
 
-    private String longPollingQueryAck() {
+    private String longPollingQueryWithAckOffset() {
         String offs = updateOffset.isSet() ? String.format("&offset=%d", updateOffset.getNext()) : "";
         return String.format("timeout=%d%s", POLLING_TIMEOUT, offs);
     }
@@ -30,10 +30,11 @@ public class LongPollingBot extends ShortPollingBot {
     }
 
     @Override
-    public Observable<Message> getMessages() {
-        return Single.defer(() -> getUpdates(longPollingQueryAck()))
+    public Observable<Message> pollMessages() {
+        return Single.defer(() -> getUpdates(longPollingQueryWithAckOffset()))
                 .flatMapObservable(this::handleUpdates)
                 .repeatWhen(handler -> handler.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
-                .retryWhen(handler -> handler.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS));
+                .retryWhen(handler -> handler.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS))
+                .mergeWith(outgoingMessages);
     }
 }
