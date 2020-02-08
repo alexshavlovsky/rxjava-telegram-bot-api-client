@@ -9,34 +9,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
-import telegrambot.apimodel.Update;
 import telegrambot.apimodel.User;
-import telegrambot.httpclient.BotApiHttpClient;
+import telegrambot.pollingbot.LongPollingBot;
+import telegrambot.pollingbot.PollingBot;
 import telegrambot.httpclient.BotApiHttpClientFactory;
 import telegrambot.httpclient.BotApiHttpClientType;
 import telegrambot.io.BotService;
 import telegrambot.io.TokenStorageService;
-import telegrambot.io.UpdateOffsetHolder;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TelegramBot implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(TelegramBot.class);
 
-    private final static int POLLING_TIMEOUT = 60;
-    private final static int POLLING_REPEAT_DELAY = 5;
-    private final static int POLLING_RETRY_DELAY = 10;
-
     private final BotService botService;
-    private final String token;
     private final User botUser;
 
-    private final BotApiHttpClient http;
-    private final UpdateOffsetHolder updateOffset = new UpdateOffsetHolder();
+    private final PollingBot pollingBot;
 
     private final ReplaySubject<Chat> currentChatSubject = ReplaySubject.create();
     private final PublishSubject<String> userTextInputSubject = PublishSubject.create();
@@ -67,18 +58,17 @@ public class TelegramBot implements AutoCloseable {
                     "Can't find any saved token.\nPlease provide an API token via command line argument.\nYou can get one from BotFather.");
         }
         logger.info("Validate the token against Telegram API...");
-        http = BotApiHttpClientFactory.newInstance(clientType);
+        pollingBot = new LongPollingBot(token, BotApiHttpClientFactory.newInstance(clientType));
         try {
-            botUser = validateTokenAgainstApi(token).blockingGet();
+            botUser = pollingBot.getMe().blockingGet();
         } catch (Exception e) {
             try {
-                http.close();
+                pollingBot.close();
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
             throw new BotException("Unable to validate token against Telegram API: " + e.getMessage(), e);
         }
-        this.token = token;
         tokenStorageService.saveToken(token);
         botService = new BotService(token);
         botService.saveUser(botUser);
@@ -88,13 +78,8 @@ public class TelegramBot implements AutoCloseable {
                 .ifPresent(message -> currentChatSubject.onNext(message.getChat()));
     }
 
-    private Single<User> validateTokenAgainstApi(String token) {
-        return http.getMe(token)
-                .doOnError(e -> logger.error("Validate token against API: {}", e.getMessage()));
-    }
-
     private Single<Message> sendMessageAckObservable(Chat chat, String textMessage) {
-        return http.sendMessage(token, chat, textMessage)
+        return pollingBot.sendMessage(chat, textMessage)
                 .doOnSuccess(botService::saveMessage)
                 .onErrorResumeNext(e -> {
                     logger.error("Send message error: {}", e.getMessage());
@@ -102,28 +87,15 @@ public class TelegramBot implements AutoCloseable {
                 });
     }
 
-    private String createGetUpdatesQuery() {
-        String offs = updateOffset.isSet() ? String.format("&offset=%d", updateOffset.getNext()) : "";
-        return String.format("timeout=%d%s", POLLING_TIMEOUT, offs);
-    }
-
-    private Observable<Message> handleUpdates(Update[] updates) {
-        // refresh the update offset
-        updateOffset.refresh(updates);
-        List<Message> messages = Arrays.stream(updates).map(Update::getMessage).collect(Collectors.toList());
+    private void handleMessage(Message message) {
         // update the current chat
-        messages.forEach(m -> currentChatSubject.onNext(m.getChat()));
+        currentChatSubject.onNext(message.getChat());
         // persist incoming messages
-        botService.saveAllMessages(messages);
-        return Observable.fromIterable(messages);
+        botService.saveMessage(message);
     }
 
     private Observable<Message> incomingMessageObservable() {
-        return Single.defer(() -> http.getUpdates(token, createGetUpdatesQuery()))
-                .flatMapObservable(this::handleUpdates)
-                .doOnError(e -> logger.error("API updates polling: {}", e.getMessage()))
-                .repeatWhen(handler -> handler.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
-                .retryWhen(handler -> handler.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS));
+        return pollingBot.getMessages().doOnNext(this::handleMessage);
     }
 
     private Observable<Message> messageHistoryObservable() {
@@ -148,6 +120,6 @@ public class TelegramBot implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        http.close();
+        pollingBot.close();
     }
 }
