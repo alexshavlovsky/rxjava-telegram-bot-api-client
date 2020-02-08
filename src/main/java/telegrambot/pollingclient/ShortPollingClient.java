@@ -49,6 +49,7 @@ public class ShortPollingClient implements PollingClient {
 
     @Override
     public void close() throws Exception {
+        outgoingMessages.onComplete();
         httpClient.close();
     }
 }

@@ -39,8 +39,8 @@ final public class NettyAsyncHttpClient extends BotApiHttpClientAdapter {
     }
 
     @Override
-    public void close() {
-        // this implementation does nothing
+    public void close() throws Exception {
+        httpClient.close();
     }
 
     static private class RxAsyncHandler implements AsyncHandler<Void> {

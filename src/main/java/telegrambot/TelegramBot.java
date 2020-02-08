@@ -14,8 +14,8 @@ import telegrambot.httpclient.BotApiHttpClientFactory;
 import telegrambot.httpclient.BotApiHttpClientType;
 import telegrambot.io.BotService;
 import telegrambot.io.TokenStorageService;
+import telegrambot.pollingclient.LongPollingClient;
 import telegrambot.pollingclient.PollingClient;
-import telegrambot.pollingclient.ShortPollingClient;
 
 import java.util.Comparator;
 
@@ -41,7 +41,7 @@ public class TelegramBot implements AutoCloseable {
                     "Can't find any saved token.\nPlease provide an API token via command line argument.\nYou can get one from BotFather.");
         }
         logger.info("Validate the token against Telegram API...");
-        pollingClient = new ShortPollingClient(token, BotApiHttpClientFactory.newInstance(clientType));
+        pollingClient = new LongPollingClient(token, BotApiHttpClientFactory.newInstance(clientType));
         try {
             botUser = pollingClient.getMe().blockingGet();
         } catch (Exception e) {
@@ -73,15 +73,11 @@ public class TelegramBot implements AutoCloseable {
                 pollingClient::sendMessage).flatMapCompletable(c -> c).subscribe();
     }
 
-    private void handleMessage(Message message) {
-        // update the current chat
-        currentChatSubject.onNext(message.getChat());
-        // persist incoming messages
-        botService.saveMessage(message);
-    }
-
-    private Observable<Message> incomingMessageObservable() {
-        return pollingClient.pollMessages().doOnNext(this::handleMessage);
+    private Observable<Message> newMessagesObservable() {
+        return pollingClient
+                .pollMessages()
+                .doOnNext(botService::saveMessage)
+                .doOnNext(message -> currentChatSubject.onNext(message.getChat()));
     }
 
     private Observable<Message> messageHistoryObservable() {
@@ -89,7 +85,7 @@ public class TelegramBot implements AutoCloseable {
     }
 
     public Observable<String> messageObservable() {
-        return messageHistoryObservable().concatWith(incomingMessageObservable())
+        return messageHistoryObservable().concatWith(newMessagesObservable())
                 .map(m -> MessageFormatter.formatMessage(m, botService, botUser));
     }
 
@@ -104,6 +100,7 @@ public class TelegramBot implements AutoCloseable {
     @Override
     public void close() throws Exception {
         outgoingMessageBridge.dispose();
+        currentChatSubject.onComplete();
         pollingClient.close();
     }
 }
