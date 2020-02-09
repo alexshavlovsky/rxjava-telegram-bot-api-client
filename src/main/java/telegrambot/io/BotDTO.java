@@ -9,13 +9,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 class BotDTO implements Serializable {
-    String token;
     Set<User> users;
     Set<Chat> chats;
     Set<Message> messages;
 
-    BotDTO(String token) {
-        this.token = token;
+    BotDTO() {
         users = new HashSet<>();
         chats = new HashSet<>();
         messages = new HashSet<>();

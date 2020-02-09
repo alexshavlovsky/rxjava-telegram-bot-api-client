@@ -32,9 +32,6 @@ public class App {
         // stream messages from API to console
         telegramBot.messageObservable().subscribe(App::print);
 
-        // stream current chat events to console
-        telegramBot.currentChatObservable().subscribe(s -> print("Current chat is set to: " + s));
-
         // create a system input scanner in a new thread
         Observable<String> keyboard = KeyboardObservableFactory.getInstance();
 

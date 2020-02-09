@@ -1,34 +1,33 @@
 package telegrambot.io;
 
+import io.reactivex.Observable;
 import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.User;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
+import java.util.*;
 
 import static telegrambot.io.FileUtils.saveObject;
 import static telegrambot.io.FileUtils.tryLoadObject;
 
-public class BotService {
+public class BotRepository {
     private static final String BOT_FILE_EXTENSION = ".data";
     private String fileName;
     private BotDTO botDTO;
 
-    public BotService(String token) {
-        fileName = BotService.getFileName(token);
-        botDTO = tryLoadObject(fileName, BotDTO.class);
-        if (botDTO == null) {
-            botDTO = new BotDTO(token);
-            save();
-        }
-    }
-
-    private static String getFileName(String token) {
+    private static String getFilenameForToken(String token) {
         int pos = token.indexOf(':');
         if (pos == -1) throw new RuntimeException("Provided token is malformed");
         return token.substring(0, pos) + BOT_FILE_EXTENSION;
+    }
+
+    public BotRepository(String token) {
+        fileName = getFilenameForToken(token);
+        botDTO = tryLoadObject(fileName, BotDTO.class);
+        if (botDTO == null) {
+            botDTO = new BotDTO();
+            save();
+        }
     }
 
     private void save() {
@@ -58,6 +57,16 @@ public class BotService {
 
     public Set<Message> getMessages() {
         return Collections.unmodifiableSet(botDTO.messages);
+    }
+
+    public Observable<Message> messageHistoryOrderedObservable() {
+        return Observable.fromIterable(botDTO.messages).sorted(Comparator.comparing(Message::getDate));
+    }
+
+    public Optional<Chat> getLatestChatOptional() {
+        return botDTO.messages.stream()
+                .max(Comparator.comparing(Message::getDate))
+                .map(Message::getChat);
     }
 
     public Set<User> getUsers() {

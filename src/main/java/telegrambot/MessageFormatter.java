@@ -5,7 +5,7 @@ import org.joda.time.DateTime;
 import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.User;
-import telegrambot.io.BotService;
+import telegrambot.io.BotRepository;
 
 import java.util.Arrays;
 import java.util.Date;
@@ -15,13 +15,13 @@ class MessageFormatter {
 
     private static int maxNameLength = -1;
 
-    private static int updateAndGetMaxNameWidth(String name, BotService botService) {
-        if (maxNameLength == -1) maxNameLength = getMaxNameWidth(botService);
+    private static int updateAndGetMaxNameWidth(String name, BotRepository botRepository) {
+        if (maxNameLength == -1) maxNameLength = getMaxNameWidth(botRepository);
         return Math.max(maxNameLength, name.length());
     }
 
-    private static int getMaxNameWidth(BotService botService) {
-        return maxNameLength = botService.getUsers().stream()
+    private static int getMaxNameWidth(BotRepository botRepository) {
+        return maxNameLength = botRepository.getUsers().stream()
                 .map(MessageFormatter::formatName)
                 .map(String::length)
                 .max(Integer::compare).orElse(0);
@@ -62,9 +62,9 @@ class MessageFormatter {
                         "NOT IMPLEMENTED: the message can't be represented as text";
     }
 
-    static String formatMessage(Message message, BotService botService, User botUser) {
+    static String formatMessage(Message message, BotRepository botRepository, User botUser) {
         String name = formatName(message.getFrom());
-        int nameWidth = updateAndGetMaxNameWidth(name, botService);
+        int nameWidth = updateAndGetMaxNameWidth(name, botRepository);
         String dir = formatDirection(message.getFrom(), botUser);
         String time = formatTime(message.getDate());
         return joinNotNullNotBlank(time, appendSpace(name, nameWidth), dir, messageToText(message));
