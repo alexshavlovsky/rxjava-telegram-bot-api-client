@@ -1,8 +1,6 @@
 package telegrambot;
 
-import io.reactivex.Completable;
 import io.reactivex.Observable;
-import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.PublishSubject;
 import io.reactivex.subjects.ReplaySubject;
 import org.slf4j.Logger;
@@ -27,10 +25,9 @@ public class TelegramBot implements AutoCloseable {
 
     private final PollingClient pollingClient;
 
-    private final ReplaySubject<Chat> currentChatSubject = ReplaySubject.create();
-    private final PublishSubject<String> userTextInputSubject = PublishSubject.create();
-    private final Observable<Chat> currentChatObservable = currentChatSubject.distinctUntilChanged();
-    private final Disposable outgoingMessageBridge;
+    private final ReplaySubject<Chat> latestChat$ = ReplaySubject.create();
+    private final PublishSubject<String> outgoingTextMessages$ = PublishSubject.create();
+    private final Observable<Chat> latestChatObservable = latestChat$.distinctUntilChanged();
 
     public TelegramBot(String token, BotApiHttpClientType clientType) throws BotException {
         TokenStorageService tokenStorageService = new TokenStorageService();
@@ -56,28 +53,19 @@ public class TelegramBot implements AutoCloseable {
         botService = new BotService(token);
         botService.saveUser(botUser);
         logger.info("Current bot name: {}", MessageFormatter.formatName(botUser));
-        // publish the latest chat from bot service
+        // publish the latest chat from bot service if any
         botService.getMessages().stream().max(Comparator.comparing(Message::getDate))
-                .ifPresent(message -> currentChatSubject.onNext(message.getChat()));
-        // bridge user text input to api
-        Completable notifyChatNotSet = userTextInputSubject
-                .takeUntil(currentChatObservable)
-                .doOnNext(m -> logger.info("A current chat is not assigned. Please send a message to this bot first!"))
-                .ignoreElements();
-        Observable<String> outgoingUserText = userTextInputSubject
-                .skipUntil(currentChatObservable)
-                .mergeWith(notifyChatNotSet);
-        outgoingMessageBridge = Observable.combineLatest(
-                currentChatObservable,
-                outgoingUserText,
-                pollingClient::sendMessage).flatMapCompletable(c -> c).subscribe();
+                .ifPresent(message -> latestChat$.onNext(message.getChat()));
+        // stream outgoing messages to the latest chat
+        pollingClient.connectMessagesToChat(outgoingTextMessages$, latestChatObservable,
+                m -> logger.info("A current chat is not assigned. Please send a message to this bot first!"));
     }
 
     private Observable<Message> newMessagesObservable() {
         return pollingClient
                 .pollMessages()
                 .doOnNext(botService::saveMessage)
-                .doOnNext(message -> currentChatSubject.onNext(message.getChat()));
+                .doOnNext(message -> latestChat$.onNext(message.getChat()));
     }
 
     private Observable<Message> messageHistoryObservable() {
@@ -90,17 +78,17 @@ public class TelegramBot implements AutoCloseable {
     }
 
     public void sendMessage(String text) {
-        userTextInputSubject.onNext(text);
+        outgoingTextMessages$.onNext(text);
     }
 
     public Observable<String> currentChatObservable() {
-        return currentChatObservable.map(MessageFormatter::formatChat);
+        return latestChatObservable.map(MessageFormatter::formatChat);
     }
 
     @Override
     public void close() throws Exception {
-        outgoingMessageBridge.dispose();
-        currentChatSubject.onComplete();
+        latestChat$.onComplete();
+        outgoingTextMessages$.onComplete();
         pollingClient.close();
     }
 }
