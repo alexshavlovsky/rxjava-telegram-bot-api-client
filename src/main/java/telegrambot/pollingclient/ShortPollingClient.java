@@ -3,10 +3,7 @@ package telegrambot.pollingclient;
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.BiFunction;
 import io.reactivex.functions.Consumer;
-import io.reactivex.subjects.PublishSubject;
 import org.slf4j.Logger;
 import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
@@ -17,12 +14,9 @@ import telegrambot.httpclient.BotApiHttpClient;
 import java.util.Arrays;
 
 public class ShortPollingClient implements PollingClient {
-
-    private final Logger logger;
     private final String token;
     private final BotApiHttpClient httpClient;
-    final PublishSubject<Message> outgoingMessages$ = PublishSubject.create();
-    private Disposable messageToChatConnector;
+    private final Logger logger;
 
     public ShortPollingClient(String token, BotApiHttpClient httpClient, Logger logger) {
         this.token = token;
@@ -38,12 +32,10 @@ public class ShortPollingClient implements PollingClient {
     }
 
     @Override
-    final public Completable sendMessage(Chat chat, String textMessage) {
+    final public Single<Message> sendMessage(Chat chat, String textMessage) {
         return httpClient.sendMessage(token, chat, textMessage)
-                .doOnSuccess(outgoingMessages$::onNext)
                 .doOnError(e -> logger.error("API method 'sendMessage' processing error: {}", e.toString()))
-                .onErrorResumeNext(Single.never())
-                .ignoreElement();
+                .onErrorResumeNext(Single.never());
     }
 
     @Override
@@ -57,29 +49,19 @@ public class ShortPollingClient implements PollingClient {
         return getUpdates("")
                 .flattenAsObservable(Arrays::asList)
                 .map(Update::getMessage)
-                .onErrorResumeNext(Observable.never())
-                .mergeWith(outgoingMessages$);
+                .onErrorResumeNext(Observable.never());
     }
 
     @Override
-    final public void connectMessagesToChat(Observable<String> messages, Observable<Chat> chat, Consumer<String> chatNotSetHandler) {
-        if (messageToChatConnector != null) throw new IllegalStateException("Already connected");
-        messageToChatConnector = ensureChatIsAssignedAndConnect(messages, chat, this::sendMessage, chatNotSetHandler);
+    public Observable<Message> connect(Observable<String> messages, Observable<Chat> chat, Consumer<String> chatNotSetHandler) {
+        Completable notifyChatNotSet = messages.takeUntil(chat).doOnNext(chatNotSetHandler).ignoreElements();
+        Observable<String> outgoingMessage = messages.skipUntil(chat).mergeWith(notifyChatNotSet);
+        return Observable.combineLatest(chat, outgoingMessage, this::sendMessage).flatMapSingle(c -> c)
+                .mergeWith(pollMessages().takeUntil(messages.lastElement().toObservable()));
     }
 
     @Override
     final public void close() throws Exception {
-        if (messageToChatConnector != null) messageToChatConnector.dispose();
-        outgoingMessages$.onComplete();
         httpClient.close();
-    }
-
-    private static Disposable ensureChatIsAssignedAndConnect(Observable<String> messages, Observable<Chat> chat,
-                                                             BiFunction<Chat, String, Completable> outgoingMessageHandler,
-                                                             Consumer<String> chatNotSetHandler) {
-        Completable notifyChatNotSet = messages.takeUntil(chat).doOnNext(chatNotSetHandler).ignoreElements();
-        Observable<String> outgoingMessage = messages.skipUntil(chat).mergeWith(notifyChatNotSet);
-        return Observable.combineLatest(chat, outgoingMessage, outgoingMessageHandler)
-                .flatMapCompletable(c -> c).subscribe();
     }
 }

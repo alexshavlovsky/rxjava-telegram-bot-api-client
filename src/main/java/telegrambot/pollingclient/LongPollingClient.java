@@ -35,7 +35,6 @@ public class LongPollingClient extends ShortPollingClient {
         return Single.defer(() -> getUpdates(longPollingQueryWithAckOffset()))
                 .flatMapObservable(this::handleUpdates)
                 .repeatWhen(handler -> handler.delay(POLLING_REPEAT_DELAY, TimeUnit.SECONDS))
-                .retryWhen(handler -> handler.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS))
-                .mergeWith(outgoingMessages$);
+                .retryWhen(handler -> handler.delay(POLLING_RETRY_DELAY, TimeUnit.SECONDS));
     }
 }
