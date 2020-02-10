@@ -2,6 +2,7 @@ package telegrambot.pollingclient;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
+import org.slf4j.Logger;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.Update;
 import telegrambot.httpclient.BotApiHttpClient;
@@ -15,8 +16,8 @@ public class LongPollingClient extends ShortPollingClient {
 
     private final UpdateOffsetHolder updateOffset = new UpdateOffsetHolder();
 
-    public LongPollingClient(String token, BotApiHttpClient httpClient) {
-        super(token, httpClient);
+    public LongPollingClient(String token, BotApiHttpClient httpClient, Logger logger) {
+        super(token, httpClient, logger);
     }
 
     private String longPollingQueryWithAckOffset() {

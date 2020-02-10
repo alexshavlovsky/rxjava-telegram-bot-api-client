@@ -35,7 +35,7 @@ public class TelegramBot implements AutoCloseable {
                     "Can't find any saved token.\nPlease provide an API token via command line argument.\nYou can get one from BotFather.");
         }
         // create an http client instance
-        pollingClient = new LongPollingClient(token, BotApiHttpClientFactory.newInstance(clientType));
+        pollingClient = new LongPollingClient(token, BotApiHttpClientFactory.newInstance(clientType), logger);
         // if the repo contains this token, then use it or else validate it against API
         if (tokensRepository.containsToken(token)) botUser = tokensRepository.getUserForToken(token);
         else {

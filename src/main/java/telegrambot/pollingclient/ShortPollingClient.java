@@ -7,6 +7,7 @@ import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.BiFunction;
 import io.reactivex.functions.Consumer;
 import io.reactivex.subjects.PublishSubject;
+import org.slf4j.Logger;
 import telegrambot.apimodel.Chat;
 import telegrambot.apimodel.Message;
 import telegrambot.apimodel.Update;
@@ -17,29 +18,38 @@ import java.util.Arrays;
 
 public class ShortPollingClient implements PollingClient {
 
+    private final Logger logger;
     private final String token;
     private final BotApiHttpClient httpClient;
     final PublishSubject<Message> outgoingMessages$ = PublishSubject.create();
     private Disposable messageToChatConnector;
 
-    public ShortPollingClient(String token, BotApiHttpClient httpClient) {
+    public ShortPollingClient(String token, BotApiHttpClient httpClient, Logger logger) {
         this.token = token;
         this.httpClient = httpClient;
+        this.logger = logger;
     }
 
     @Override
     final public Single<User> getMe() {
-        return httpClient.getMe(token);
+        return httpClient.getMe(token)
+                .doOnError(e -> logger.error("API method 'getMe' processing error: {}", e.toString()))
+                .onErrorResumeNext(Single.never());
     }
 
     @Override
     final public Completable sendMessage(Chat chat, String textMessage) {
-        return httpClient.sendMessage(token, chat, textMessage).doOnSuccess(outgoingMessages$::onNext).ignoreElement();
+        return httpClient.sendMessage(token, chat, textMessage)
+                .doOnSuccess(outgoingMessages$::onNext)
+                .doOnError(e -> logger.error("API method 'sendMessage' processing error: {}", e.toString()))
+                .onErrorResumeNext(Single.never())
+                .ignoreElement();
     }
 
     @Override
     final public Single<Update[]> getUpdates(String query) {
-        return httpClient.getUpdates(token, query);
+        return httpClient.getUpdates(token, query)
+                .doOnError(e -> logger.error("API method 'getUpdates' processing error: {}", e.toString()));
     }
 
     @Override
