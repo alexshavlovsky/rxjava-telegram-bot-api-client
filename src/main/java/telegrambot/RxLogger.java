@@ -1,10 +1,10 @@
 package telegrambot;
 
+import io.reactivex.Observable;
+import io.reactivex.subjects.ReplaySubject;
 import org.slf4j.event.EventRecodingLogger;
 import org.slf4j.event.SubstituteLoggingEvent;
 import org.slf4j.helpers.SubstituteLogger;
-import rx.Observable;
-import rx.subjects.ReplaySubject;
 
 import java.util.LinkedList;
 
