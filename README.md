@@ -1,4 +1,6 @@
-# RxJava Telegram Bot API Client
+# RxJava Telegram Bot API Console Client
+
+This is the console version. A browser version of this client: [Spring Boot WebFlux RxJava2 Thymeleaf WebSockets Telegram Bot API Client](https://github.com/alexshavlovsky/web-flux-telegram-bot-client)
 
 Just another command line java Telegram Bot API client. Main features:
 - built on top of Java 8 and RxJava2 Reactive Extensions
