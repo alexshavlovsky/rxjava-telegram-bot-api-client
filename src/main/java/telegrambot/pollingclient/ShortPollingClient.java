@@ -27,8 +27,7 @@ public class ShortPollingClient implements PollingClient {
     @Override
     final public Single<User> getMe() {
         return httpClient.getMe(token)
-                .doOnError(e -> logger.error("API method 'getMe' processing error: {}", e.toString()))
-                .onErrorResumeNext(Single.never());
+                .doOnError(e -> logger.error("API method 'getMe' processing error: {}", e.toString()));
     }
 
     @Override
