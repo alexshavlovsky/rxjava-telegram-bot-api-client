@@ -32,7 +32,7 @@ public class ShortPollingClient implements PollingClient {
     }
 
     @Override
-    final public Single<Message> sendMessage(Chat chat, String textMessage) {
+    final public Single<Message> sendMessage(String textMessage, Chat chat) {
         return httpClient.sendMessage(token, chat, textMessage)
                 .doOnError(e -> logger.error("API method 'sendMessage' processing error: {}", e.toString()))
                 .onErrorResumeNext(Single.never());
@@ -56,7 +56,7 @@ public class ShortPollingClient implements PollingClient {
     public Observable<Message> connect(Observable<String> messages, Observable<Chat> chat, Consumer<String> chatNotSetHandler) {
         Completable notifyChatNotSet = messages.takeUntil(chat).doOnNext(chatNotSetHandler).ignoreElements();
         Observable<String> outgoingMessage = messages.skipUntil(chat).mergeWith(notifyChatNotSet);
-        return Observable.combineLatest(chat, outgoingMessage, this::sendMessage).flatMapSingle(c -> c)
+        return outgoingMessage.withLatestFrom(chat, this::sendMessage).flatMapSingle(c -> c)
                 .mergeWith(pollMessages().takeUntil(messages.lastElement().toObservable()));
     }
 
